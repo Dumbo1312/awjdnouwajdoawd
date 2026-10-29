@@ -3,6 +3,9 @@
 Two things were added to the UEFITool window: a yellow on black theme, and a
 Tweaks menu that applies groups of patches to the image you have open.
 
+All screenshots here are of the built binary running, driven through the
+flow by `tests/screenshot.sh`, not mock-ups.
+
 ![The main window](images/main-window.png)
 
 ## The theme
@@ -64,9 +67,22 @@ Tweaked.
 Rebuild the image and save it now?
 ```
 
-with a **Show details** button listing every line as applied or missed, and
-Yes taking you straight to Save. Saving is what reconstructs the image, so
-"rebuild and save" is one step.
+![The result](images/tweaked-dialog.png)
+
+**Show Details** lists every line as applied or missed, and Yes takes you
+straight to Save. Saving is what reconstructs the image, so "rebuild and
+save" is one step.
+
+A message box's detail pane is a small fixed box, so the same report also
+goes to the **Messages** list in the main window, where it is scrollable,
+stays put while you work, and the existing *Copy all messages* action can
+lift it out. The Action column shows exactly which sections were touched:
+
+![After applying a preset](images/main-window-tweaked.png)
+
+In that run the Haswell pattern matched both copies of `PowerMgmtDxe` in the
+image, which is what "2 patch line(s) applied, changing 3 section(s)" means
+and what **Patch every copy of a module** does.
 
 If nothing matched, it says so plainly and does not pretend the image
 changed. That is the normal outcome when a preset is for a different
@@ -127,6 +143,19 @@ To add your own, derive the pattern with `tools/msr-lock-scan.py` and
 It shows up in the dialog the next time you open it, under that platform
 heading.
 
+## Screenshots
+
+`tests/screenshot.sh` builds UEFITool, starts a virtual X server, runs the
+real binary under it and clicks through the whole preset flow with xdotool,
+writing the four images in this document to `docs/images/`. It needs
+
+```sh
+apt-get install xvfb openbox xdotool x11-utils imagemagick
+```
+
+on top of Qt. The dialog is driven from the keyboard where it can be, because
+pixel coordinates depend on how the preset names happen to wrap.
+
 ## Testing
 
 `tests/run_gui_tests.sh` builds `tests/guicheck`, which links the same
@@ -142,3 +171,7 @@ performs, writes the result, and diffs it against the image UEFIPatch
 produces from the same preset on the command line. Both go through
 `applyPatchEntry()` in `patchset.cpp`, and the test fails if they ever stop
 agreeing byte for byte.
+
+Its own renders are written as `offscreen-*.png` so they can never be
+confused with, or overwrite, the pictures of the real binary that
+`screenshot.sh` produces.

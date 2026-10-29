@@ -257,6 +257,9 @@ Covered at length in [gui-guide.md](gui-guide.md); in summary:
   several volumes is patched in all of them.
 - **Load preset file...** reads any file in the preset format, so patterns
   you derive yourself appear in the list without rebuilding anything.
+- The per-line report goes to the **Messages** list as well as into the
+  result box, because a message box's detail pane is a small fixed-size
+  area and the report is the thing you want to read and keep.
 
 Entries with nothing to apply (the AMD and Graphics groups) are shown as
 notes, not as tickable presets. There are no upstream byte patterns for
@@ -335,6 +338,12 @@ ok    the GUI and UEFIPatch produce a byte-identical image
 
 GUI tests passed.
 ```
+
+`tests/screenshot.sh` is the other half: it builds UEFITool, runs the real
+binary under Xvfb with openbox and clicks through the preset flow with
+xdotool, so the pictures in the documentation are of the program itself.
+guicheck's own offscreen renders are named `offscreen-*.png` so the two
+can not be confused.
 
 ## Not done
 

@@ -908,6 +908,20 @@ void UEFITool::applyPresets(const QStringList & setIds, bool allCopies)
 
     showMessages();
 
+    // A QMessageBox's detailed text pane is a fixed, small box, so the full
+    // report also goes to the Messages list, where it is scrollable, keeps
+    // its place while you work, and the existing Copy all messages action
+    // can lift it out.
+    ui->messageListWidget->addItem(new MessageListItem(
+        tr("--- presets applied from %1 ---").arg(catalog.sourceName())));
+    for (int i = 0; i < report.count(); i++)
+        ui->messageListWidget->addItem(new MessageListItem(report.at(i)));
+    ui->messageListWidget->addItem(new MessageListItem(
+        tr("--- %1 applied, %2 not matched, %3 section(s) changed ---")
+            .arg(applied).arg(missed).arg(sections)));
+    ui->messageListWidget->scrollToBottom();
+    ui->actionMessagesCopyAll->setEnabled(true);
+
     if (applied == 0) {
         ui->statusBar->showMessage(tr("Not tweaked: no pattern matched this image"));
         QMessageBox box(this);

@@ -10,6 +10,8 @@ Base commit: `d9642c53e7b873fcce858ec2bea577f099b966d5` (tag `0.28.0`).
 
 ![The preset dialog](docs/images/preset-dialog.png)
 
+![After applying a preset](docs/images/main-window-tweaked.png)
+
 ## Kratko (hrvatski)
 
 - **GUI**: nova žuto-crna tema (View -> Yellow on black theme, pamti se) i
@@ -122,9 +124,13 @@ tools/
 tests/
   run_tests.sh       37 command line regression cases
   run_gui_tests.sh   53 GUI checks plus a GUI/CLI byte-for-byte cross-check
+  screenshot.sh      drives the real binary under Xvfb for docs/images
   guicheck/          the headless GUI test program
   make_test_image.py builds the synthetic firmware volume they run against
 ```
+
+The screenshots in this README and in `docs/gui-guide.md` are of the built
+binary running, produced by `tests/screenshot.sh`, not mock-ups.
 
 ## What changed in the tool
 
@@ -160,6 +166,7 @@ that.
 tests/run_tests.sh                      # 37 command line cases
 tests/run_tests.sh /path/to/UEFIPatch   # or test an existing binary
 tests/run_gui_tests.sh                  # 53 GUI cases, no X server needed
+tests/screenshot.sh                     # regenerate docs/images from the real binary
 ```
 
 Both run against a synthetic FFS2 volume built by `tests/make_test_image.py`

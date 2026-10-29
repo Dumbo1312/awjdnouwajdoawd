@@ -184,7 +184,7 @@ int main(int argc, char *argv[])
 
     dialog.resize(900, 620);
     dialog.show();
-    check(saveShot(&dialog, outDir + "/preset-dialog.png"), "the preset dialog renders to a PNG");
+    check(saveShot(&dialog, outDir + "/offscreen-preset-dialog.png"), "the preset dialog renders to a PNG");
     dialog.hide();
 
     // --------------------------------------------------------- main window ---
@@ -220,7 +220,7 @@ int main(int argc, char *argv[])
     check(presetsAction && presetsAction->isEnabled(),
           "opening an image enables the presets action");
 
-    check(saveShot(&window, outDir + "/main-window.png"), "the main window renders to a PNG");
+    check(saveShot(&window, outDir + "/offscreen-main-window.png"), "the main window renders to a PNG");
 
     // The theme toggle must take effect without restarting.
     if (themeAction) {

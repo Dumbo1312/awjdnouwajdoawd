@@ -53,7 +53,10 @@ PresetDialog::PresetDialog(QWidget *parent) :
 
     sourceLabel = new QLabel(this);
     sourceLabel->setProperty("dim", true);
-    sourceLabel->setWordWrap(true);
+    // Deliberately not wrapped: a long path would reflow onto a second line
+    // and push the whole list down. The file name is what identifies the
+    // catalog anyway, and the full path is on the tooltip.
+    sourceLabel->setWordWrap(false);
 
     tree = new QTreeWidget(this);
     tree->setColumnCount(3);
@@ -232,7 +235,8 @@ void PresetDialog::populate()
     tree->blockSignals(false);
 
     sourceLabel->setText(tr("%1 - %2 preset(s) that can be applied")
-                         .arg(loadedPath).arg(applicableSets));
+                         .arg(QFileInfo(loadedPath).fileName()).arg(applicableSets));
+    sourceLabel->setToolTip(loadedPath);
 
     detail->setHtml(tr("<p>Tick one or more presets, then <b>Apply tweaks</b>. Each preset is a "
                        "group of byte patterns; a pattern is applied only where it actually "
