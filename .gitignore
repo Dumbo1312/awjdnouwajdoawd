@@ -22,3 +22,4 @@ ui_*.h
 *.patched
 *.dump/
 mega_file
+RIven_extracted/
