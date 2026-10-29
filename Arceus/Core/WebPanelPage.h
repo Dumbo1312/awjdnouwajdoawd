@@ -450,10 +450,6 @@ var SCHEMA = {
         {t:"slider", label:"Recoil Strength", key:"Recoil.strength", min:0.1, max:10, step:0.01, dec:2, suffix:"px"},
         {t:"keybind", label:"Recoil Key", key:"Recoil.bind"}
       ]},
-      { title: "Overlay", controls: [
-        {t:"select", label:"FOV Shape", key:"Network.fovShape", list:"fovShapes"},
-        {t:"slider", label:"Third-Person Mult", key:"Network.thirdPersonMultiplier", min:1, max:50, step:0.1, dec:1, suffix:"x"},
-      ]}
     ]
   },
   binds: {
@@ -462,7 +458,6 @@ var SCHEMA = {
       { title: "Binds", controls: [
         {t:"keybind", label:"Hold Aim", key:"Binds.aim"},
         {t:"keybind", label:"Toggle Aim", key:"Binds.toggleAim"},
-        {t:"keybind", label:"Hide Menu", key:"Binds.toggleMenu"},
         {t:"keybind", label:"ADS Bind", key:"Binds.ads"},
         {t:"keybind", label:"Trigger Key", key:"Trigger.bind"}
       ]},
