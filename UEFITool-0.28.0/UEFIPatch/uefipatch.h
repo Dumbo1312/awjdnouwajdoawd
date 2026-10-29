@@ -23,6 +23,7 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 #include "../basetypes.h"
 #include "../ffs.h"
 #include "../ffsengine.h"
+#include "../firmwarereport.h"
 #include "../patchset.h"
 
 // Run time options that are not paths
@@ -54,6 +55,16 @@ public:
 
     // Prints the sets found by the last successful load.
     void listSets() const;
+
+    // Parses an image and prints what the scanner made of it. Touches
+    // nothing: this is the command line face of Tweaks -> Analyze image.
+    UINT8 analyze(const QString & path, bool verbose);
+
+    // Writes every leaf section body to outputDir, decompressed, so that a
+    // disassembler or tools/msr-lock-scan.py has real code to look at. A raw
+    // scan of a firmware dump finds almost nothing useful, because most of
+    // the modules are compressed inside their volumes.
+    UINT8 dumpModules(const QString & path, const QString & outputDir);
 
     // Applies the loaded patches to path, writing the result to outputPath.
     UINT8 run(const QString & path, const QString & outputPath, const PatchOptions & options);

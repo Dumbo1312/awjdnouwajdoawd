@@ -191,6 +191,10 @@ void DebloatDialog::populate()
         group->setFont(COLUMN_NAME, groupFont);
         group->setForeground(COLUMN_NAME, QColor(Theme::accentColor()));
         group->setText(COLUMN_RISK, category.risk.isEmpty() ? tr("-") : category.risk);
+        if (category.isProtected) {
+            group->setText(COLUMN_DEPENDS, tr("protected"));
+            group->setForeground(COLUMN_DEPENDS, QColor(Theme::warningColor()));
+        }
 
         quint64 categoryBytes = 0;
 
@@ -208,8 +212,17 @@ void DebloatDialog::populate()
                              .arg(candidate.module.volume));
             item->setData(COLUMN_NAME, ROLE_CANDIDATE, candidateIndex);
             item->setText(COLUMN_SIZE, humanSize(candidate.module.size));
-            item->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsUserCheckable);
-            item->setCheckState(COLUMN_NAME, Qt::Unchecked);
+
+            if (category.isProtected) {
+                // Shown so you know it is in your image, with no way to tick
+                // it. Boot critical things do not belong behind a checkbox.
+                item->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
+            }
+            else {
+                item->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable
+                               | Qt::ItemIsUserCheckable);
+                item->setCheckState(COLUMN_NAME, Qt::Unchecked);
+            }
 
             QString risk = category.risk.isEmpty() ? tr("-") : category.risk;
             if (candidate.inApriori || candidate.isLastOfKind)
@@ -217,13 +230,19 @@ void DebloatDialog::populate()
             item->setText(COLUMN_RISK, risk);
 
             QString depends;
-            if (candidate.inApriori)
+            if (category.isProtected)
+                depends = tr("protected");
+            else if (candidate.inApriori)
                 depends = tr("in apriori list");
             else if (!candidate.referencedBy.isEmpty())
                 depends = tr("%1 reference(s)").arg(candidate.referencedBy.count());
             else
                 depends = tr("none found");
             item->setText(COLUMN_DEPENDS, depends);
+            if (category.isProtected) {
+                item->setForeground(COLUMN_NAME, QColor(Theme::dimTextColor()));
+                item->setForeground(COLUMN_DEPENDS, QColor(Theme::warningColor()));
+            }
 
             if (candidate.looksRisky()) {
                 item->setForeground(COLUMN_DEPENDS, QColor(Theme::warningColor()));
@@ -322,6 +341,10 @@ void DebloatDialog::showCategoryDetail(const DebloatCategory & category)
             .arg(category.label.isEmpty() ? category.id : category.label)
             .arg(Theme::dimTextColor()).arg(category.id);
 
+    if (category.isProtected) {
+        html += tr("<p style=\"color:%1\"><b>Protected: this tool will not remove these.</b></p>")
+                .arg(Theme::warningColor());
+    }
     if (!category.risk.isEmpty())
         html += tr("<p>Risk: <b>%1</b></p>").arg(category.risk);
     if (!category.impact.isEmpty())
@@ -338,7 +361,6 @@ void DebloatDialog::showCategoryDetail(const DebloatCategory & category)
 void DebloatDialog::showCandidateDetail(const DebloatCandidate & candidate)
 {
     const DebloatCategory* category = removables.categoryById(candidate.categoryId);
-
     QString html;
     html += tr("<p><b>%1</b><br><span style=\"color:%2\">%3</span></p>")
             .arg(candidate.module.name.isEmpty() ? candidate.module.guid : candidate.module.name)
@@ -349,6 +371,13 @@ void DebloatDialog::showCandidateDetail(const DebloatCandidate & candidate)
 
     html += tr("<p>%1 in %2</p>")
             .arg(humanSize(candidate.module.size)).arg(candidate.module.volume);
+
+    if (category && category->isProtected) {
+        html += tr("<p style=\"color:%1\"><b>Protected.</b> This module is listed so you can "
+                   "see that it is in your image, but it has no checkbox and this tool will "
+                   "not remove it. If you genuinely need it gone, do it by hand in the tree "
+                   "and accept that you are on your own.</p>").arg(Theme::warningColor());
+    }
 
     html += tr("<p><b>Dependency scan</b></p>");
     if (candidate.inApriori) {

@@ -24,11 +24,13 @@ Usage:
 """
 
 import argparse
+import os
 import sys
 
 # MSRs worth a closer look when hunting for firmware locks. The comment is
 # why the register matters, not a claim that patching it is a good idea.
 INTERESTING_MSRS = {
+    # Intel
     0x0CE: "MSR_PLATFORM_INFO - ratio limits, programmable ratio and TDP lock bits",
     0x0E2: "MSR_PKG_CST_CONFIG_CONTROL - package C-state limit plus CFG_LOCK in bit 15",
     0x0E4: "MSR_PMG_IO_CAPTURE_BASE - C-state IO redirection",
@@ -46,6 +48,26 @@ INTERESTING_MSRS = {
     0x618: "MSR_DRAM_POWER_LIMIT",
     0x64C: "MSR_TURBO_ACTIVATION_RATIO",
     0x150: "MSR_OC_MAILBOX - undervolt and overclock mailbox on many client parts",
+
+    # AMD. Every one of these was observed in a real AM4 firmware image while
+    # this list was being written, in the module you would expect it in, which
+    # is why they are here rather than only the Intel set.
+    0xC0010010: "SYSCFG - memory type and TOM2",
+    0xC0010015: "HWCR - hardware configuration, CpbDis in bit 25 disables core boost",
+    0xC0010020: "Patch loader, used to apply a microcode patch",
+    0xC0010061: "P-state current limit",
+    0xC0010062: "P-state control, the P-state request",
+    0xC0010063: "P-state status",
+    0xC0010064: "P-state 0 definition, the top P-state's ratio and voltage",
+    0xC0010065: "P-state 1 definition",
+    0xC0010066: "P-state 2 definition",
+    0xC0010067: "P-state 3 definition",
+    0xC0010068: "P-state 4 definition",
+    0xC0010114: "VM_CR - SVM disable in bit 4 and SVM lock in bit 3",
+    0xC0010293: "CPPC request on Zen, the collaborative performance request",
+    0xC0010296: "CPPC capability",
+    0xC00102B0: "CPPC enable",
+    0xC0000080: "EFER - extended feature enable",
 }
 
 RDMSR = b"\x0f\x32"
@@ -191,11 +213,81 @@ def scan(path, args):
     return shown
 
 
+def summarise(paths, args):
+    """One line per MSR across every file, instead of one block per site.
+
+    Scanning a whole firmware dump directly is close to useless: most module
+    bodies are compressed inside their volumes, so the byte pairs that look
+    like rdmsr and wrmsr are mostly compressed data, and the numbers that come
+    out are noise. Extract first:
+
+        UEFIPatch image.bin --dump out/
+        msr-lock-scan.py --summary out/*.bin
+
+    The ratio of attributed to unattributed sites in the output tells you
+    whether you are looking at code or at noise. On real extracted modules
+    most sites attribute to a sensible MSR; on a raw dump almost none do.
+    """
+    import collections
+
+    counts = collections.Counter()
+    seen_in = collections.defaultdict(list)
+    sites = 0
+    unattributed = 0
+
+    for path in paths:
+        try:
+            with open(path, "rb") as handle:
+                data = handle.read()
+        except OSError:
+            continue
+
+        name = os.path.basename(path)
+        for needle, _kind in ((RDMSR, "rdmsr"), (WRMSR, "wrmsr")):
+            for site in find_all(data, needle):
+                sites += 1
+                msr, _distance = attribute_msr(data, site, args.lookback)
+                if msr is None:
+                    unattributed += 1
+                    continue
+                counts[msr] += 1
+                if name not in seen_in[msr] and len(seen_in[msr]) < 4:
+                    seen_in[msr].append(name)
+
+    attributed = sites - unattributed
+    print("%d file(s), %d rdmsr/wrmsr site(s), %d attributed, %d not"
+          % (len(paths), sites, attributed, unattributed))
+    if sites and attributed * 4 < unattributed:
+        print()
+        print("Most sites could not be attributed to an MSR. That usually means")
+        print("these are compressed or packed bytes rather than code. Extract the")
+        print("modules first: UEFIPatch <image> --dump <dir>")
+    print()
+
+    rows = sorted(counts.items(), key=lambda item: -item[1])
+    shown = 0
+    for msr, count in rows:
+        known = INTERESTING_MSRS.get(msr)
+        if not known and not args.all:
+            continue
+        shown += 1
+        print("  %#010x  x%-5d %s" % (msr, count, known or ""))
+        for name in seen_in[msr]:
+            print("               in %s" % name)
+
+    if shown == 0:
+        print("  no known MSR was touched; pass --all to see every number seen")
+    return shown
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Find candidate MSR lock sites in an extracted UEFI module.")
     parser.add_argument("files", nargs="+", metavar="FILE",
                         help="module body, PE32 section or whole firmware dump")
+    parser.add_argument("--summary", action="store_true",
+                        help="one line per MSR across every file, instead of "
+                             "one block per site")
     parser.add_argument("--context", type=int, default=12, metavar="N",
                         help="bytes of context to print on each side (default 12)")
     parser.add_argument("--lookback", type=int, default=32, metavar="N",
@@ -203,6 +295,9 @@ def main():
     parser.add_argument("--all", action="store_true",
                         help="report every rdmsr/wrmsr, not just the interesting MSRs")
     args = parser.parse_args()
+
+    if args.summary:
+        return 0 if summarise(args.files, args) else 0
 
     total = 0
     for path in args.files:

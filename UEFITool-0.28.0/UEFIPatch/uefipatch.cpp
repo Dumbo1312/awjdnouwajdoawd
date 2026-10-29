@@ -12,6 +12,7 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 */
 
 #include <QCryptographicHash>
+#include <QDir>
 #include <QFile>
 #include <iostream>
 
@@ -137,6 +138,174 @@ void UEFIPatch::listSets() const
 
     out(QString());
     out(tr("Select sets with --set a,b and skip them with --exclude a,b."));
+}
+
+UINT8 UEFIPatch::analyze(const QString & path, bool verbose)
+{
+    errorText.clear();
+
+    const QFileInfo inputInfo = QFileInfo(path);
+    if (!inputInfo.exists()) {
+        errorText = tr("%1 does not exist").arg(path);
+        return ERR_FILE_OPEN;
+    }
+
+    QFile inputFile;
+    inputFile.setFileName(path);
+    if (!inputFile.open(QFile::ReadOnly)) {
+        errorText = tr("%1 can not be read").arg(path);
+        return ERR_FILE_READ;
+    }
+    const QByteArray buffer = inputFile.readAll();
+    inputFile.close();
+
+    out(tr("Input:   %1 (%2 bytes)").arg(path).arg(buffer.size()));
+    out(tr("         %1 %2").arg(digestName()).arg(digestOf(buffer)));
+
+    const UINT8 result = ffsEngine->parseImageFile(buffer);
+    if (result) {
+        errorText = tr("%1 could not be parsed as a UEFI image").arg(path);
+        return result;
+    }
+
+    const FirmwareScanner scanner(ffsEngine, model);
+    const FirmwareReport report = scanner.scan();
+
+    out(QString());
+    const QStringList summary = report.summaryLines();
+    for (int i = 0; i < summary.count(); i++)
+        out(summary.at(i));
+
+    // Against a loaded patch file, say which sets would do something here.
+    if (!catalog.entries().isEmpty()) {
+        out(QString());
+        out(tr("Presets against this image:"));
+        const QMap<QString, UINT8> applies = scanner.evaluatePresets(catalog);
+        const QVector<PatchSet> & sets = catalog.sets();
+        for (int i = 0; i < sets.count(); i++) {
+            const PatchSet & set = sets.at(i);
+            if (!set.isApplicable())
+                continue;
+            const UINT8 outcome = applies.value(set.id, FW_MATCH_ABSENT);
+            QString verdict;
+            if (outcome == FW_MATCH_APPLIES)
+                verdict = tr("will apply");
+            else if (outcome == FW_MATCH_PRESENT)
+                verdict = tr("module here, pattern differs");
+            else
+                verdict = tr("not in this image");
+            out(QString("  %1  %2").arg(set.id, -28).arg(verdict));
+        }
+    }
+
+    if (verbose) {
+        out(QString());
+        out(tr("Modules:"));
+        for (int i = 0; i < report.modules.count(); i++) {
+            const ModuleInfo & module = report.modules.at(i);
+            out(QString("  %1  %2  %3")
+                .arg(module.name.isEmpty() ? tr("(unnamed)") : module.name, -36)
+                .arg(module.guid)
+                .arg(module.size, 9));
+        }
+    }
+
+    return ERR_SUCCESS;
+}
+
+// Characters that are awkward in a file name on one platform or another.
+static QString safeName(const QString & name)
+{
+    QString safe;
+    for (int i = 0; i < name.length(); i++) {
+        const QChar c = name.at(i);
+        safe += (c.isLetterOrNumber() || c == '-' || c == '_' || c == '.') ? c : QChar('_');
+    }
+    return safe.isEmpty() ? QString("unnamed") : safe;
+}
+
+static UINT8 dumpTree(TreeModel* model, const QModelIndex & index, const QString & dir,
+                      const QString & fileLabel, UINT32 & written)
+{
+    if (!index.isValid())
+        return ERR_SUCCESS;
+
+    QString label = fileLabel;
+
+    if (model->type(index) == Types::File) {
+        const QString name = model->text(index).trimmed();
+        label = model->name(index);
+        if (!name.isEmpty())
+            label = safeName(name) + "_" + label;
+    }
+
+    // A leaf section is the end of the line: its body is decompressed code
+    // or data, which is what anyone scanning for instructions needs.
+    if (model->type(index) == Types::Section && model->rowCount(index) == 0) {
+        const QByteArray body = model->body(index);
+        if (!body.isEmpty()) {
+            QDir().mkpath(dir);
+            const QString fileName = QString("%1/%2_sect%3.bin")
+                    .arg(dir).arg(label)
+                    .arg(QString::number(model->subtype(index), 16).toUpper()
+                         .rightJustified(2, '0'));
+
+            QFile out(fileName);
+            if (!out.open(QFile::WriteOnly))
+                return ERR_FILE_WRITE;
+            out.write(body);
+            out.close();
+            written++;
+        }
+    }
+
+    for (int i = 0; i < model->rowCount(index); i++) {
+        const UINT8 result = dumpTree(model, model->index(i, 0, index), dir, label, written);
+        if (result)
+            return result;
+    }
+
+    return ERR_SUCCESS;
+}
+
+UINT8 UEFIPatch::dumpModules(const QString & path, const QString & outputDir)
+{
+    errorText.clear();
+
+    QFile inputFile;
+    inputFile.setFileName(path);
+    if (!inputFile.exists()) {
+        errorText = tr("%1 does not exist").arg(path);
+        return ERR_FILE_OPEN;
+    }
+    if (!inputFile.open(QFile::ReadOnly)) {
+        errorText = tr("%1 can not be read").arg(path);
+        return ERR_FILE_READ;
+    }
+    const QByteArray buffer = inputFile.readAll();
+    inputFile.close();
+
+    const UINT8 result = ffsEngine->parseImageFile(buffer);
+    if (result) {
+        errorText = tr("%1 could not be parsed as a UEFI image").arg(path);
+        return result;
+    }
+
+    if (!QDir().mkpath(outputDir)) {
+        errorText = tr("%1 can not be created").arg(outputDir);
+        return ERR_DIR_CREATE;
+    }
+
+    UINT32 written = 0;
+    const UINT8 dumpResult = dumpTree(model, model->index(0, 0), outputDir,
+                                      tr("image"), written);
+    if (dumpResult) {
+        errorText = tr("writing to %1 failed after %2 file(s)").arg(outputDir).arg(written);
+        return dumpResult;
+    }
+
+    out(tr("Dumped %1 section body(s) to %2").arg(written).arg(outputDir));
+    return ERR_SUCCESS;
 }
 
 bool UEFIPatch::isSelected(const PatchEntry & entry, const PatchOptions & options) const

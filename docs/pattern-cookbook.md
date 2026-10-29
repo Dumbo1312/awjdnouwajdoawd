@@ -73,10 +73,17 @@ recovery image.
 ### 2. Extract the modules
 
 ```
-UEFIExtract backup.bin
+UEFIPatch backup.bin --dump out/
 ```
 
-This gives you `backup.bin.dump/` with one directory per firmware file. The
+This writes every leaf section body, decompressed, named after the module it
+came from. Decompressed is the point: a scan of the raw dump finds mostly
+compressed data that happens to contain the right byte pairs, and the MSR
+numbers that come out of it are noise. On a real 16 MB image the raw scan
+attributed 40 of 400 sites; the extracted modules attributed 1338 of 2322.
+
+UEFITool's own `UEFIExtract` does the same job if you have a newer build of
+it, producing `backup.bin.dump/` with one directory per firmware file. The
 power management code is usually in one of:
 
 | Module | GUID | Where it shows up |
@@ -98,7 +105,8 @@ UEFIFind find all 8 0F320FBAE80F0F30 backup.bin
 ### 3. Find the candidate sites
 
 ```
-tools/msr-lock-scan.py backup.bin.dump/<module>/.../body.bin
+tools/msr-lock-scan.py out/<module>_sect10.bin
+tools/msr-lock-scan.py --summary out/*.bin    # one line per MSR, across everything
 ```
 
 The scanner finds every `rdmsr` and `wrmsr`, attributes each to an MSR number
@@ -209,6 +217,27 @@ deliberate patch and poking at a register because a forum post said to.
 | `0x1FC` | `MSR_POWER_CTL` | C1E, energy efficient turbo |
 | `0x610` | `MSR_PKG_POWER_LIMIT` | PL1 and PL2, with a lock bit in 63 |
 | `0x150` | `MSR_OC_MAILBOX` | the undervolt and overclock mailbox on many client parts |
+
+On AMD the registers are different, and the scanner knows these too. Each was
+seen in a real AM4 image, in the module you would expect:
+
+| MSR | Name | Why it comes up |
+| --- | --- | --- |
+| `0xC0010015` | `HWCR` | `CpbDis` in bit 25 disables core performance boost |
+| `0xC0010010` | `SYSCFG` | memory type and TOM2 |
+| `0xC0010061` | P-state current limit | the lowest P-state firmware allows |
+| `0xC0010062` | P-state control | the P-state request |
+| `0xC0010063` | P-state status | |
+| `0xC0010064`-`0xC0010068` | P-state definitions | ratio and voltage per P-state |
+| `0xC0010114` | `VM_CR` | SVM disable in bit 4, SVM lock in bit 3 |
+| `0xC0010293` | CPPC request | the collaborative performance request on Zen |
+| `0xC0010020` | Patch loader | applies a microcode patch |
+
+Note what is *not* on that list: there is no AMD equivalent of Intel's
+`CFG_LOCK`, and no established lock-removal patch for any of these. Finding
+the sites tells you where boost and P-state control live in your firmware. It
+does not hand you a patch, and inventing one from a byte scan with no board
+to test on is how boards get bricked.
 
 ## When not to patch
 

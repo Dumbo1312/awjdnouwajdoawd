@@ -186,8 +186,15 @@ list is built by scanning: only things actually present are offered, each
 with a dependency check behind it, and the banner says plainly that none of
 it affects frame rate.
 
+Boot critical categories - CSM, storage and RAID drivers, the flash write
+path, AMD platform initialisation - are listed but have no checkbox at all.
+They are there so you can see what your image contains, not so you can
+remove them.
+
 It has its own document, [scanning-and-debloat.md](scanning-and-debloat.md),
-because the interesting part is the analysis rather than the dialog.
+because the interesting part is the analysis rather than the dialog, and
+[walkthrough-real-bios.md](walkthrough-real-bios.md) runs it against a real
+16 MB image.
 
 ## Analyze image
 
@@ -213,7 +220,7 @@ pixel coordinates depend on how the preset names happen to wrap.
 ## Testing
 
 `tests/run_gui_tests.sh` builds `tests/guicheck`, which links the same
-sources as UEFITool with its own `main()`, and runs 89 checks under Qt's
+sources as UEFITool with its own `main()`, and runs 96 checks under Qt's
 offscreen platform plugin — no X server, no real firmware. It covers the
 theme resource and the toggle, the menu layout, that presets stay disabled
 until an image is open, that the catalog groups by platform, that exactly

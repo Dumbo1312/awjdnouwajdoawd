@@ -149,6 +149,24 @@ Then read [risks-and-recovery.md](risks-and-recovery.md) before you flash it,
 particularly the Boot Guard section: on a lot of hardware a modified image
 will not boot at all, and no amount of care with this dialog changes that.
 
+## What is never offered
+
+Some categories carry `#!protected`. They are matched and shown, so you can
+see what your image contains, but they have no checkbox and the tool will not
+remove them whatever you click. A test pins that even ticking everything
+cannot select one.
+
+| Category | Why |
+| --- | --- |
+| Compatibility Support Module | CSM is on the boot path. Turning it off in setup gives the same pure UEFI boot without touching the image, and a CMOS clear undoes that. |
+| Storage controllers and RAID | Remove the driver for the controller your boot disk is on and there is nothing to boot from and nothing to recover with but a programmer. |
+| The firmware's flash write path | How the board updates and recovers itself. Removing it can leave a machine that boots fine and can never be rewritten by software again, which does not show up until the day you need it. |
+| AMD platform extras | AMD firmware dispatches modules from tables this tool cannot read, so the dependency check has nothing to go on. |
+
+The line between "offered" and "protected" is not about size or how useless
+something looks. It is about what happens when the guess is wrong: a slower
+POST, or a board that needs a clip and a programmer.
+
 ## Adding your own entries
 
 `knowledge/debloat.txt` is read at startup, so an entry you add appears next
@@ -166,6 +184,27 @@ N SomeVendorThing   what it is
 The same applies to `patches/presets.txt` for tweaks. Neither file needs the
 program rebuilt.
 
+## Extracting modules
+
+A byte scan of a raw firmware dump is close to useless, because most module
+bodies are compressed inside their volumes: the byte pairs that look like
+`rdmsr` and `wrmsr` are mostly compressed data. On a real 16 MB image, a raw
+scan found 400 sites and could attribute 40 of them, to numbers like
+`0xB2B400E1`. Scanning the same image's extracted modules found 2322 sites
+and attributed 1338, to real MSRs in the modules that should have them.
+
+So extract first:
+
+```sh
+UEFIPatch bios.bin --dump out/
+tools/msr-lock-scan.py --summary out/*.bin
+```
+
+`--dump` writes every leaf section body, decompressed, named after the module
+it came from. `--summary` gives one line per MSR across every file, and warns
+when the attributed-to-unattributed ratio says you are looking at compressed
+data rather than code.
+
 ## Where the scanner is used elsewhere
 
 The preset dialog uses the same scan for its **This image** column:
@@ -179,3 +218,7 @@ The preset dialog uses the same scan for its **This image** column:
 on my BIOS" as anything can honestly get without flashing it, and it is why
 the preset list is worth opening even if you already know which preset you
 want.
+
+[walkthrough-real-bios.md](walkthrough-real-bios.md) runs all of this against
+a real 16 MB AMD image, including what it looks like when the answer is that
+nothing applies.

@@ -10,7 +10,10 @@ Base commit: `d9642c53e7b873fcce858ec2bea577f099b966d5` (tag `0.28.0`).
 
 ![The preset dialog](docs/images/preset-dialog.png)
 
-![The debloat dialog](docs/images/debloat-dialog.png)
+![The debloat dialog](docs/images/walkthrough/06-debloat.png)
+
+Driven against a real 16 MB AMD B550 image, start to finish, in
+[`docs/walkthrough-real-bios.md`](docs/walkthrough-real-bios.md).
 
 ## Kratko (hrvatski)
 
@@ -28,6 +31,12 @@ Base commit: `d9642c53e7b873fcce858ec2bea577f099b966d5` (tag `0.28.0`).
   tko nosi njegov GUID). ⚠️ Debloat **ne daje FPS** — skraćuje POST i smanjuje
   količinu koda prije OS-a. To piše i u samom dijalogu.
   Detalji: [`docs/scanning-and-debloat.md`](docs/scanning-and-debloat.md).
+- **Kritične stvari se ne mogu obrisati.** CSM, storage/RAID driveri, flash
+  write path i AMD platform init označeni su `#!protected`: vide se u listi
+  da znaš što imaš, ali **nemaju checkbox** i tool ih neće maknuti. Test
+  provjerava da ni "označi sve" ne može odabrati zaštićeni modul.
+- **Odrađeno na pravom BIOS-u** (MSI B550, 16 MB), svaki korak uslikan:
+  [`docs/walkthrough-real-bios.md`](docs/walkthrough-real-bios.md).
 - Preseti su grupirani po platformi: **Intel** ima dva stvarna preseta
   (otključavanje MSR 0xE2 i 0xE2+0x1AA), **AMD** i **Graphics** nemaju što
   primijeniti i dijalog to pošteno kaže umjesto da nudi gumb koji ne radi
@@ -63,6 +72,20 @@ qmake uefitool.pro && make          # the GUI
 cd UEFITool-0.28.0/UEFIPatch
 qmake uefipatch.pro && make         # the command line patcher
 ```
+
+The command line tool can scan and extract too, which is what the pattern
+workflow needs:
+
+```sh
+UEFIPatch bios.bin --analyze            # platform, vendor, inventory, preset fit
+UEFIPatch bios.bin --analyze -v         # plus every module
+UEFIPatch bios.bin --dump out/          # every module body, decompressed
+tools/msr-lock-scan.py --summary out/*.bin
+```
+
+Scanning a raw dump instead of extracted modules mostly finds compressed
+data that happens to look like instructions; `--summary` says so when the
+numbers look like noise.
 
 `UEFIReplace` builds the same way and is unchanged.
 
@@ -134,10 +157,11 @@ patches/
   presets.txt        the preset catalog the GUI loads, grouped by platform
   performance.txt    the same patterns as a plain UEFIPatch database
 knowledge/
-  debloat.txt        what the Debloat dialog knows how to find and remove
+  debloat.txt        what the Debloat dialog finds, removes, and refuses to
 docs/
   gui-guide.md                the theme, the preset dialog, debloat, analyze
   scanning-and-debloat.md     how the scan and the dependency check work
+  walkthrough-real-bios.md    the whole flow against a real 16 MB AMD image
   bios-performance-guide.md   which firmware changes affect frame rate
   pattern-cookbook.md         deriving UEFIPatch patterns for your own board
   risks-and-recovery.md       Boot Guard, protected regions, getting back
@@ -146,7 +170,7 @@ tools/
   msr-lock-scan.py   find candidate MSR lock sites in an extracted module
 tests/
   run_tests.sh       37 command line regression cases
-  run_gui_tests.sh   89 GUI checks plus a GUI/CLI byte-for-byte cross-check
+  run_gui_tests.sh   96 GUI checks plus a GUI/CLI byte-for-byte cross-check
   screenshot.sh      drives the real binary under Xvfb for docs/images
   guicheck/          the headless GUI test program
   make_test_image.py builds the synthetic firmware volume they run against
@@ -188,7 +212,7 @@ that.
 ```sh
 tests/run_tests.sh                      # 37 command line cases
 tests/run_tests.sh /path/to/UEFIPatch   # or test an existing binary
-tests/run_gui_tests.sh                  # 89 GUI cases, no X server needed
+tests/run_gui_tests.sh                  # 96 GUI cases, no X server needed
 tests/screenshot.sh                     # regenerate docs/images from the real binary
 ```
 
@@ -224,6 +248,10 @@ preset.
   removal is risky; it can never show one is safe, because a dependency
   expression records protocol GUIDs rather than file GUIDs. The dialog says
   this where it matters, on every candidate that comes back clean.
+- **Nothing here has been flashed to a board.** The real-image walkthrough
+  rebuilds an image, reopens it and verifies exactly which modules changed.
+  That is not the same as knowing it boots, and on a platform with Boot
+  Guard or Platform Secure Boot it very likely does not.
 - **Nothing here has been tested on your board.** The tests cover the tool,
   against a synthetic image. They say nothing about whether a given patch is
   right for your firmware, which is what `--dry-run` and `--strict` are for.

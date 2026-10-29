@@ -24,6 +24,7 @@ Files changed:
 | `version.h` | version string -> `0.28.0-perf1` |
 | `uefitool.cpp`, `uefitool.h` | Tweaks and View menus, preset application |
 | `uefitool.pro`, `UEFIPatch/uefipatch.pro` | new sources and the resource |
+| `UEFIPatch/uefipatch_main.cpp` | `--analyze` and `--dump` |
 
 Files added:
 
@@ -241,6 +242,8 @@ are reported separately for things that are suspicious but legal:
 
 Covered at length in [gui-guide.md](gui-guide.md); in summary:
 
+- **Analyze image** under Tweaks, and the same report in the Messages list
+  on every open.
 - **A yellow on black theme**, in one stylesheet compiled in as a Qt
   resource, with a **View -> Yellow on black theme** toggle that takes effect
   without a restart and is remembered between sessions. Panels, lists, inputs
@@ -326,6 +329,43 @@ The banner across the top says that none of this affects frame rate, because
 that is the most common reason people reach for a debloat feature and it is
 not true.
 
+**Protected categories.** `#!protected` marks a category as matched and
+shown but never removable: it gets no checkbox at all. The compatibility
+support module, storage and RAID drivers, the firmware's own flash write
+path and AMD platform initialisation are all marked this way. The line is
+not about size or how useless something looks, it is about what happens when
+the guess is wrong: a slower POST, or a board that needs a clip and a
+programmer. A test pins that even ticking everything in the dialog cannot
+select a protected module.
+
+### A bug the real image found
+
+The first run against a real AMD B550 image reported the platform as
+*"ambiguous, evidence for both Intel and AMD"*. The Intel hint `MeSmm` was
+being matched as a substring, and it sits inside `RuntimeSmm` and `NvmeSmm`,
+both perfectly ordinary modules on an AMD board. Two false positives were
+enough to spoil the verdict.
+
+Hints are matched as name prefixes now, so they identify a module family
+rather than turning up by accident in the middle of an unrelated name. A
+split that is still lopsided resolves to the majority and says so
+("AMD, with some Intel named modules") instead of giving up.
+
+### Scanning and extracting from the command line
+
+- `--analyze` prints the same report the GUI shows, plus which presets fit
+  the image, and with `-v` the whole module inventory.
+- `--dump <dir>` writes every leaf section body, decompressed, named after
+  the module it came from. This is what makes the pattern workflow possible
+  with only this repository: a byte scan of a raw dump is close to useless
+  because the module bodies are compressed inside their volumes.
+
+On a real 16 MB image the difference is stark: a raw scan found 400
+`rdmsr`/`wrmsr` byte pairs and could attribute 40 of them, to numbers like
+`0xB2B400E1`. The same image's extracted modules gave 2322 sites with 1338
+attributed, to real MSRs in the modules that should have them.
+`tools/msr-lock-scan.py --summary` now warns when that ratio looks wrong.
+
 ### Shared parsing
 
 Patch file parsing, validation and application moved out of `uefipatch.cpp`
@@ -379,7 +419,7 @@ ok    truncated patch spec is rejected, not a crash
 ### GUI
 
 `tests/run_gui_tests.sh` builds `tests/guicheck`, which links the same
-sources as UEFITool but with its own `main()`, and runs 89 checks under Qt's
+sources as UEFITool but with its own `main()`, and runs 96 checks under Qt's
 offscreen platform plugin. No X server and no real firmware are needed. It
 covers the theme resource and toggle, the menu layout (including that Help
 stays last), presets being disabled until an image is open, platform
@@ -396,7 +436,7 @@ exactly rather than against whatever a real dump happens to contain.
 ```
 $ tests/run_gui_tests.sh
 ...
-89 passed, 0 failed
+96 passed, 0 failed
 
 Cross-checking the GUI apply path against UEFIPatch
 ok    the GUI and UEFIPatch produce a byte-identical image
@@ -410,6 +450,18 @@ xdotool, so the pictures in the documentation are of the program itself.
 guicheck's own offscreen renders are named `offscreen-*.png` so the two
 can not be confused.
 
+## Tried against a real image
+
+[walkthrough-real-bios.md](walkthrough-real-bios.md) runs the whole flow
+against a 16 MB MSI B550 dump: scan, analyze, presets (which correctly find
+nothing, because it is an AMD board and every preset is Intel), debloat,
+rebuild and save. The rebuilt image was reopened and diffed against the
+original from the command line, confirming exactly the three ticked modules
+were removed and nothing else changed.
+
+It was never flashed. A rebuilt image that parses cleanly is not a booting
+board, and this project has no way to find out which.
+
 ## Not done
 
 - `UEFIReplace` is untouched, including its own copy of the GUID handling.
@@ -422,6 +474,11 @@ can not be confused.
 - Vendor detection has no entry for the OEM behind a board, only for the
   firmware codebase (AMI, Insyde, Phoenix). Board identification lives in
   SMBIOS tables that are populated at runtime, not in the image.
+- There is still no AMD preset. Scanning a real AM4 image located boost and
+  P-state control in `AmdCcx*Dxe/Smm` and `CbsSetupDxe*`, which is useful to
+  know, but AMD has no equivalent of Intel's `CFG_LOCK` and no established
+  lock-removal patch for those registers. Writing one from a byte scan with
+  no board to test on would be inventing a patch and calling it knowledge.
 - The `patchViaPattern()` matcher still builds a hex string of the whole
   section body and runs a `QRegExp` over it, which is slow on large sections.
   It is correct, so it was left alone.

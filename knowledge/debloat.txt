@@ -25,6 +25,13 @@
 # Nothing in here is selected by default, and nothing is removed until you
 # say so twice.
 #
+# Some categories are marked #!protected. Those are boot critical: the
+# compatibility support module, storage controller drivers, the firmware's own
+# flash write path, and AMD platform initialisation. They are still listed, so
+# you can see what your image contains, but they have no checkbox and this
+# tool will not remove them. Breaking the boot path is not something that
+# should be one careless click away.
+#
 # FILE FORMAT
 # -----------
 # Directives, all starting with '#' so other tools read the file as comments:
@@ -36,6 +43,8 @@
 #   #!note <text>        caveats, repeat the directive for more lines
 #   #!platform <name>    Intel, AMD or Any; the dialog dims non matching ones
 #   #!requires <text>    a condition you must have checked yourself first
+#   #!protected          the category is listed so you can see what is in your
+#                        image, but nothing in it ever gets a checkbox
 #
 # Entries, one per line:
 #
@@ -89,30 +98,34 @@ N NetworkStackSetup   Network stack setup page
 N SnpDxe              Simple network protocol driver
 N MnpDxe              Managed network protocol
 N ArpDxe              ARP, required by the IPv4 stack
-N TlsDxe              TLS for HTTPS boot
+N TlsDxe              TLS for HTTPS boot, often one of the largest modules present
 N TlsAuthConfigDxe    TLS certificate configuration page
+N PxeLoader           PXE boot loader shim
 
 
 #============================================================================
 #!category csm-legacy
 #!label Compatibility Support Module (legacy BIOS boot)
+#!protected
 #!risk high
 #!platform Any
-#!impact Shortens POST and removes a large block of 16 bit code that runs
-#!impact before the operating system.
-#!requires You boot in pure UEFI mode with CSM already disabled in setup, and
-#!requires your operating system is installed in UEFI mode on a GPT disk.
-#!note If anything still needs legacy boot, the machine will not boot after
-#!note this and you will need the recovery path.
-#!note Removing CSM also removes legacy option ROM support, so an old add-in
-#!note card without a UEFI option ROM will stop initialising.
-#!note On most boards simply turning CSM off in setup gives you the same boot
-#!note path without touching the image. Do that first.
+#!impact Nothing, because this tool will not remove it.
+#!note Protected. CSM sits directly on the boot path, and the failure mode for
+#!note getting it wrong is a machine that does not boot at all rather than one
+#!note that boots a bit slower.
+#!note It is listed so you can see what your image carries. Turning CSM off in
+#!note setup gives you the pure UEFI boot path without touching the image at
+#!note all, which is what you actually want, and a CMOS clear undoes it.
+#!note Removing it would also remove legacy option ROM support, so any add-in
+#!note card without a UEFI option ROM would stop initialising.
 #============================================================================
 
 N CsmDxe              Compatibility support module driver
 N CsmVideo            Legacy video option ROM support
+N CsmBlockIo          Legacy block IO over the CSM
 N LegacyBios          Legacy BIOS protocol implementation
+N AmiLegacy           AMI legacy support module
+N TcgLegacy           Legacy trusted computing support
 N LegacyRegion        Legacy memory region handling
 N LegacyInterrupt     Legacy interrupt handling
 N Legacy8259          8259 interrupt controller support
@@ -143,6 +156,7 @@ N EzFlash             Vendor firmware update utility
 N FwUpdate            Firmware update application
 N Diagnostic          Vendor hardware diagnostics
 N HpDiagnostic        Vendor hardware diagnostics
+N QFlashHandler       Vendor in-BIOS firmware update front end
 N SupportAssist       Vendor support application
 N CloudRecovery       Network firmware recovery application
 N SecureErase         Drive secure erase utility
@@ -169,6 +183,8 @@ N SplashScreen        Boot splash screen
 N OemBadging          Vendor badging and logo placement
 N BootLogo            Boot logo driver
 N CrisisRecoveryImage Recovery screen artwork
+N OemLOGO             Vendor logo bitmap
+N MyOemLogo           Vendor logo bitmap
 
 
 #============================================================================
@@ -222,15 +238,17 @@ N UsbDebug            Debug over USB
 
 #============================================================================
 #!category unused-storage
-#!label Storage controllers you do not have
+#!label Storage controllers and RAID
+#!protected
 #!risk high
 #!platform Any
 #!impact Shorter POST, because each controller driver probes its bus.
-#!requires You have confirmed the controller is genuinely absent from this
-#!requires board, not merely unused. Check the board's specification, not the
-#!requires names in this list.
-#!note This is the easiest category to get wrong. Removing the driver for a
-#!note controller your boot disk is attached to leaves an unbootable machine.
+#!note Protected. This is the easiest category in the file to get wrong, and
+#!note the way it goes wrong is that the machine stops finding its boot disk.
+#!note Removing the driver for the controller your operating system lives on
+#!note leaves nothing to boot from and nothing to recover with except the
+#!note flash programmer.
+#!note Listed so you can see what your image carries.
 #!note A third party controller driver is present because the board has that
 #!note chip. The usual reason to remove one is a board revision that shares a
 #!note firmware image with a higher model that does have the chip.
@@ -249,6 +267,9 @@ N MegaRaid            LSI MegaRAID controller driver
 N IntelRaid           Intel RAID option ROM
 N RstOrom             Intel Rapid Storage Technology option ROM
 N SataController      SATA controller driver
+N UefiRaid            UEFI RAID driver
+N NvmeRaid            NVMe RAID driver
+N AmiAmdUefiRaid      AMD UEFI RAID driver
 
 
 #============================================================================
@@ -264,6 +285,7 @@ N SataController      SATA controller driver
 #============================================================================
 
 N Thunderbolt         Thunderbolt controller support
+N AmdCpmThunderbolt   AMD platform Thunderbolt support
 N TbtDxe              Thunderbolt driver
 N TbtSmm              Thunderbolt system management handler
 N TbtPolicy           Thunderbolt policy driver
@@ -318,21 +340,50 @@ N OverClockSetup      Intel overclocking mailbox setup page
 #============================================================================
 #!category amd-extras
 #!label AMD platform extras
+#!protected
 #!risk high
 #!platform AMD
 #!impact Small POST savings.
 #!note AMD platform initialisation is far more tightly coupled than Intel's.
 #!note AGESA modules, the CPM drivers and the PSP interface are not optional
 #!note and are not listed here for that reason.
-#!note Only the clearly peripheral pieces appear below, and even those are
-#!note marked high risk because AMD firmware tends to dispatch modules from
-#!note tables this tool cannot read.
+#!note Protected. Even the pieces that look peripheral are marked off limits,
+#!note because AMD firmware dispatches modules from tables this tool cannot
+#!note read, so the dependency check has nothing to go on here.
 #============================================================================
 
 N AmdCpmDisplay       AMD display feature driver
 N AmdPspP2CmBox       PSP mailbox helper
 N AmdSmbiosDxe        AMD SMBIOS table extras
 N AmdAcpiAml          Extra ACPI tables
+
+
+#============================================================================
+#!category flash-path
+#!label The firmware's own flash write path
+#!protected
+#!risk high
+#!platform Any
+#!impact Nothing, because this tool will not remove it.
+#!note Protected. These are the drivers and system management handlers that
+#!note write to the SPI chip. They are how the board updates itself, how a
+#!note vendor recovery tool writes a known good image back, and on some boards
+#!note how the firmware saves its own settings.
+#!note Removing them can leave a machine that boots perfectly and can never be
+#!note updated or recovered by software again, which is the worst kind of
+#!note mistake: it does not show up until the day you need it.
+#!note Listed so you can see what your image carries.
+#============================================================================
+
+N FlashDriver         SPI flash write driver
+N SmiFlash            Flash access through system management mode
+N FlashSmi            Flash access through system management mode
+N SecFlash            Authenticated flash update path
+N ReFlash             Firmware recovery and reflash path
+N AmiPspFlash         AMD PSP flash access
+N RpmcSmm             Replay protected monotonic counter, used by secure flash
+N FvbService          Firmware volume block services, the NVRAM write path
+N SpiSmm              SPI controller system management handler
 
 
 #============================================================================

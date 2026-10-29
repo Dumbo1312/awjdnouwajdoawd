@@ -69,6 +69,7 @@ struct DebloatCategory {
     QStringList impact;             // what removing this actually gains
     QStringList notes;
     QStringList requirements;       // things the user must have checked first
+    bool isProtected;               // listed so you can see it, never removable
     QVector<int> entries;           // indexes into DebloatCatalog::entries()
 };
 

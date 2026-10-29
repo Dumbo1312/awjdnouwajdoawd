@@ -38,7 +38,7 @@ DebloatEntry::DebloatEntry() :
 }
 
 DebloatCategory::DebloatCategory() :
-    platform(PATCH_PLATFORM_ANY)
+    platform(PATCH_PLATFORM_ANY), isProtected(false)
 {
 }
 
@@ -240,6 +240,11 @@ UINT8 DebloatCatalog::loadFile(const QString & path)
             else if (directive == "requires") {
                 currentCategory(categoryId).requirements.append(argument);
             }
+            else if (directive == "protected") {
+                // Still matched and still shown, so you can see what is in
+                // your image, but the dialog will not let it be ticked.
+                currentCategory(categoryId).isProtected = true;
+            }
             else {
                 warningList.append(QObject::tr("%1 line %2: unknown directive #!%3, ignored")
                                    .arg(path).arg(lineNumber).arg(QString::fromUtf8(directive)));
@@ -367,6 +372,11 @@ void FirmwareScanner::walk(const QModelIndex & index, FirmwareReport & report,
 // Module names that only ever belong to one vendor's platform code. Matching
 // on a name the image itself carries beats guessing from GUIDs, which differ
 // between vendors and BIOS versions.
+//
+// These are matched as name PREFIXES, not as substrings anywhere in the name.
+// A substring match is far too loose: "MeSmm" sits inside "RuntimeSmm" and
+// "NvmeSmm", both of which are perfectly ordinary modules on an AMD board,
+// and two of those were enough to make a B550 image read as ambiguous.
 static const char* INTEL_MODULE_HINTS[] = {
     "SiInit", "PchInit", "SaInit", "PowerMgmtDxe", "PpmInitialize", "CpuPei",
     "IgdOpRegion", "PchSmiDispatcher", "MeSmm", "MeFwDowngrade", "AmtWrapper",
@@ -377,6 +387,13 @@ static const char* AMD_MODULE_HINTS[] = {
     "AmdCpm", "AmdInit", "AmdPsp", "AmdSoc", "AmdCpuDxe", "AmdNb", "AmdSb",
     "AmdAgesa", "Agesa", "AmdFabric", "AmdMem", "AmdSmbios", "FchInit", NULL
 };
+
+// True when name starts with hint, so that a hint identifies a module family
+// rather than appearing by accident in the middle of an unrelated name.
+static bool nameStartsWith(const QString & name, const char* hint)
+{
+    return name.startsWith(QLatin1String(hint), Qt::CaseInsensitive);
+}
 
 // Longer ASCII strings found in module bodies. Each is specific enough that a
 // chance hit is not a realistic worry.
@@ -425,14 +442,12 @@ void FirmwareScanner::detectPlatform(FirmwareReport & report) const
         if (name.isEmpty())
             continue;
         for (int h = 0; INTEL_MODULE_HINTS[h]; h++) {
-            if (name.contains(INTEL_MODULE_HINTS[h], Qt::CaseInsensitive)
-                    && !intelHits.contains(name)) {
+            if (nameStartsWith(name, INTEL_MODULE_HINTS[h]) && !intelHits.contains(name)) {
                 intelHits.append(name);
             }
         }
         for (int h = 0; AMD_MODULE_HINTS[h]; h++) {
-            if (name.contains(AMD_MODULE_HINTS[h], Qt::CaseInsensitive)
-                    && !amdHits.contains(name)) {
+            if (nameStartsWith(name, AMD_MODULE_HINTS[h]) && !amdHits.contains(name)) {
                 amdHits.append(name);
             }
         }
@@ -452,8 +467,23 @@ void FirmwareScanner::detectPlatform(FirmwareReport & report) const
     }
 
     if (intel && amd) {
-        report.platform = FW_PLATFORM_BOTH;
-        report.platformName = QObject::tr("ambiguous, evidence for both Intel and AMD");
+        // Evidence for both is usually one side being right and the other
+        // being a stray name. A clear majority decides it, and the verdict
+        // says it was not unanimous so the evidence list gets read.
+        const int intelCount = intelHits.count();
+        const int amdCount = amdHits.count();
+        if (intelCount >= amdCount * 4) {
+            report.platform = FW_PLATFORM_INTEL;
+            report.platformName = QObject::tr("Intel, with some AMD named modules");
+        }
+        else if (amdCount >= intelCount * 4) {
+            report.platform = FW_PLATFORM_AMD;
+            report.platformName = QObject::tr("AMD, with some Intel named modules");
+        }
+        else {
+            report.platform = FW_PLATFORM_BOTH;
+            report.platformName = QObject::tr("ambiguous, evidence for both Intel and AMD");
+        }
     }
     else if (intel) {
         report.platform = FW_PLATFORM_INTEL;

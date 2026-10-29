@@ -11,6 +11,7 @@ SOURCES  += uefipatch_main.cpp \
  uefipatch.cpp \
  ../types.cpp \
  ../patchset.cpp \
+ ../firmwarereport.cpp \
  ../descriptor.cpp \
  ../ffs.cpp \
  ../ffsengine.cpp \
@@ -29,6 +30,7 @@ SOURCES  += uefipatch_main.cpp \
 
 HEADERS  += uefipatch.h \
  ../patchset.h \
+ ../firmwarereport.h \
  ../basetypes.h \
  ../descriptor.h \
  ../gbe.h \

@@ -37,6 +37,8 @@ static void usage()
         << "                        (default: <image_file>.patched)" << std::endl
         << "  -p, --patch <spec>    apply one patch given on the command line" << std::endl
         << "                        instead of reading a patch file" << std::endl
+        << "  -a, --analyze         report what the image is and which presets fit it" << std::endl
+        << "      --dump <dir>      write every module body there, decompressed" << std::endl
         << "  -l, --list            list the patch sets in the patch file and exit" << std::endl
         << "  -s, --set <a,b,...>   apply only these patch sets" << std::endl
         << "  -x, --exclude <a,b>   never apply these patch sets" << std::endl
@@ -97,6 +99,8 @@ int main(int argc, char *argv[])
     QString outputPath;
     QString argumentPatch;
     bool listOnly = false;
+    bool analyzeOnly = false;
+    QString dumpDir;
     bool patchFromArgument = false;
     PatchOptions options;
 
@@ -109,6 +113,16 @@ int main(int argc, char *argv[])
         }
         else if (arg == "-l" || arg == "--list") {
             listOnly = true;
+        }
+        else if (arg == "-a" || arg == "--analyze") {
+            analyzeOnly = true;
+        }
+        else if (arg == "--dump") {
+            if (i + 1 >= argumentsCount) {
+                std::cout << "Error: --dump needs a directory" << std::endl;
+                return ERR_INVALID_PARAMETER;
+            }
+            dumpDir = args.at(++i);
         }
         else if (arg == "-n" || arg == "--dry-run") {
             options.dryRun = true;
@@ -211,6 +225,24 @@ int main(int argc, char *argv[])
     if (result == ERR_SUCCESS && listOnly) {
         w.listSets();
         return ERR_SUCCESS;
+    }
+
+    if (!dumpDir.isEmpty()) {
+        result = w.dumpModules(inputPath, dumpDir);
+        if (result != ERR_SUCCESS) {
+            std::cout << "Error: " << w.lastError().toLocal8Bit().constData() << std::endl;
+            return result;
+        }
+        if (!analyzeOnly)
+            return ERR_SUCCESS;
+    }
+
+    if (analyzeOnly) {
+        // A missing or unreadable patch file is not fatal here: the scan
+        // still works, it just cannot say which presets fit.
+        result = w.analyze(inputPath, options.verbose);
+        if (result == ERR_SUCCESS)
+            return ERR_SUCCESS;
     }
 
     if (result == ERR_SUCCESS) {

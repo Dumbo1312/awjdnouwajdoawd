@@ -361,6 +361,21 @@ int main(int argc, char *argv[])
                 std::cout << "        " << debloat.error().toLocal8Bit().constData() << std::endl;
             check(debloat.categories().count() >= 10,
                   "the debloat catalogue has its categories");
+
+            // Boot critical categories must be marked protected, which is
+            // what stops the dialog ever putting a checkbox on them.
+            const DebloatCategory* csm = debloat.categoryById("csm-legacy");
+            check(csm != NULL && csm->isProtected,
+                  "the CSM category is protected");
+            const DebloatCategory* storage = debloat.categoryById("unused-storage");
+            check(storage != NULL && storage->isProtected,
+                  "the storage controller category is protected");
+            const DebloatCategory* flash = debloat.categoryById("flash-path");
+            check(flash != NULL && flash->isProtected,
+                  "the flash write path category is protected");
+            const DebloatCategory* network = debloat.categoryById("network-boot");
+            check(network != NULL && !network->isProtected,
+                  "the network boot category is not protected");
             check(debloat.entries().count() >= 90,
                   "the debloat catalogue has its entries");
 
@@ -434,16 +449,53 @@ int main(int argc, char *argv[])
                 check(debloatTree->topLevelItemCount() >= 3,
                       "only categories with something found are shown");
 
-                int tickable = 0;
+                int rows = 0;
+                bool sawCsm = false;
+                bool sawPxe = false;
+                bool headingTickable = false;
                 for (int g = 0; g < debloatTree->topLevelItemCount(); g++) {
                     QTreeWidgetItem* group = debloatTree->topLevelItem(g);
-                    check(!(group->flags() & Qt::ItemIsUserCheckable),
-                          "a category heading is not tickable on its own");
-                    tickable += group->childCount();
+                    if (group->flags() & Qt::ItemIsUserCheckable)
+                        headingTickable = true;
+                    for (int c = 0; c < group->childCount(); c++) {
+                        QTreeWidgetItem* item = group->child(c);
+                        rows++;
+                        const QString name = item->text(0);
+                        const bool tickable = (item->flags() & Qt::ItemIsUserCheckable) != 0;
+                        if (name == "CsmDxe") {
+                            sawCsm = true;
+                            check(!tickable, "CsmDxe is listed but has no checkbox");
+                        }
+                        else if (name == "UefiPxeBcDxe") {
+                            sawPxe = true;
+                            check(tickable, "a module in an unprotected category is tickable");
+                        }
+                    }
                 }
-                check(tickable >= 6, "every candidate has a row");
+                check(!headingTickable, "no category heading is tickable on its own");
+                check(rows >= 6, "every candidate has a row");
+                check(sawCsm, "a protected module is still shown");
+                check(sawPxe, "an unprotected module is still shown");
+
+                // Ticking everything that can be ticked must never select a
+                // protected module, whatever the user does in the dialog.
+                for (int g = 0; g < debloatTree->topLevelItemCount(); g++) {
+                    QTreeWidgetItem* group = debloatTree->topLevelItem(g);
+                    for (int c = 0; c < group->childCount(); c++) {
+                        QTreeWidgetItem* item = group->child(c);
+                        if (item->flags() & Qt::ItemIsUserCheckable)
+                            item->setCheckState(0, Qt::Checked);
+                    }
+                }
+                settle();
+                const QStringList picked = debloatUi.selectedLabels();
+                check(!picked.isEmpty(), "ticking everything selects something");
+                check(!picked.contains("CsmDxe"),
+                      "selecting everything still cannot select a protected module");
             }
 
+            // Back to a clean dialog for the screenshot.
+            debloatUi.selectNoneForTesting();
             debloatUi.resize(1000, 720);
             debloatUi.show();
             check(saveShot(&debloatUi, outDir + "/offscreen-debloat-dialog.png"),

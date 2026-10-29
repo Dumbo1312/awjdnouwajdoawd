@@ -60,6 +60,10 @@ public:
     // How many of the ticked ones have a dependency finding against them.
     int selectedRiskyCount() const;
 
+    // Clears every tick. Public so a test can put the dialog back to a known
+    // state after exercising the selection logic.
+    void selectNoneForTesting() { selectNone(); }
+
 private slots:
     void selectNone();
     void itemChanged(QTreeWidgetItem* item, int column);
