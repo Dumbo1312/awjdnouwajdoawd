@@ -1,0 +1,408 @@
+/* UEFITool yellow on black theme.
+ *
+ * Palette, kept in one place so it can be reasoned about:
+ *
+ *   #0f0f10  window background          #e6e4dc  body text
+ *   #17171a  panel background           #9a978c  dimmed text
+ *   #1f1f23  raised / alternating row   #ffc400  accent yellow
+ *   #2a2a1c  hover                      #ffd453  accent yellow, lighter
+ *   #3a3a2e  border                     #121212  text on an accent fill
+ *
+ * The accent is only ever used on a near black background, and anything
+ * drawn on an accent fill uses #121212, so both directions stay well
+ * above a 4.5:1 contrast ratio.
+ *
+ * Branch indicators in QTreeView and the drop down arrow in QComboBox are
+ * deliberately left unstyled: without replacement images a stylesheet rule
+ * for them renders nothing at all, and an expandable tree with no visible
+ * arrows is worse than a slightly inconsistent one.
+ */
+
+QWidget {
+    background-color: #0f0f10;
+    color: #e6e4dc;
+}
+
+QMainWindow, QDialog {
+    background-color: #0f0f10;
+}
+
+QToolTip {
+    background-color: #1f1f23;
+    color: #ffd453;
+    border: 1px solid #3a3a2e;
+    padding: 3px;
+}
+
+/* ---------------------------------------------------------------- menus --- */
+
+QMenuBar {
+    background-color: #17171a;
+    border-bottom: 1px solid #3a3a2e;
+}
+
+QMenuBar::item {
+    background: transparent;
+    padding: 5px 10px;
+    color: #e6e4dc;
+}
+
+QMenuBar::item:selected {
+    background-color: #ffc400;
+    color: #121212;
+}
+
+QMenuBar::item:disabled {
+    color: #6e6b63;
+}
+
+QMenu {
+    background-color: #17171a;
+    border: 1px solid #3a3a2e;
+    padding: 4px;
+}
+
+QMenu::item {
+    padding: 5px 26px 5px 22px;
+    color: #e6e4dc;
+}
+
+QMenu::item:selected {
+    background-color: #ffc400;
+    color: #121212;
+}
+
+QMenu::item:disabled {
+    color: #6e6b63;
+}
+
+QMenu::separator {
+    height: 1px;
+    background-color: #3a3a2e;
+    margin: 4px 6px;
+}
+
+/* --------------------------------------------------------------- frames --- */
+
+QGroupBox {
+    background-color: #17171a;
+    border: 1px solid #3a3a2e;
+    border-radius: 3px;
+    margin-top: 14px;
+    padding-top: 6px;
+}
+
+QGroupBox::title {
+    subcontrol-origin: margin;
+    subcontrol-position: top left;
+    left: 8px;
+    padding: 0 5px;
+    color: #ffc400;
+    font-weight: bold;
+}
+
+QSplitter::handle {
+    background-color: #0f0f10;
+}
+
+QSplitter::handle:horizontal {
+    width: 4px;
+}
+
+QSplitter::handle:vertical {
+    height: 4px;
+}
+
+QSplitter::handle:hover {
+    background-color: #ffc400;
+}
+
+QStatusBar {
+    background-color: #17171a;
+    border-top: 1px solid #3a3a2e;
+    color: #ffc400;
+}
+
+QStatusBar::item {
+    border: none;
+}
+
+/* ------------------------------------------------------- tree and lists --- */
+
+QTreeView, QListWidget, QListView, QTableView {
+    background-color: #17171a;
+    alternate-background-color: #1f1f23;
+    border: 1px solid #3a3a2e;
+    color: #e6e4dc;
+    selection-background-color: #ffc400;
+    selection-color: #121212;
+    outline: none;
+}
+
+QTreeView::item, QListWidget::item, QListView::item {
+    padding: 2px 4px;
+    border: none;
+}
+
+QTreeView::item:hover, QListWidget::item:hover, QListView::item:hover {
+    background-color: #2a2a1c;
+}
+
+QTreeView::item:selected, QListWidget::item:selected, QListView::item:selected {
+    background-color: #ffc400;
+    color: #121212;
+}
+
+QHeaderView {
+    background-color: #1f1f23;
+}
+
+QHeaderView::section {
+    background-color: #1f1f23;
+    color: #ffc400;
+    padding: 5px 6px;
+    border: none;
+    border-right: 1px solid #3a3a2e;
+    border-bottom: 1px solid #3a3a2e;
+    font-weight: bold;
+}
+
+QHeaderView::section:hover {
+    background-color: #2a2a1c;
+}
+
+/* ------------------------------------------------------------- editors --- */
+
+QPlainTextEdit, QTextEdit, QTextBrowser {
+    background-color: #17171a;
+    border: 1px solid #3a3a2e;
+    color: #e6e4dc;
+    selection-background-color: #ffc400;
+    selection-color: #121212;
+}
+
+QLineEdit, QSpinBox, QComboBox {
+    background-color: #1f1f23;
+    border: 1px solid #3a3a2e;
+    border-radius: 2px;
+    padding: 4px 6px;
+    color: #e6e4dc;
+    selection-background-color: #ffc400;
+    selection-color: #121212;
+}
+
+QLineEdit:focus, QSpinBox:focus, QComboBox:focus {
+    border: 1px solid #ffc400;
+}
+
+QLineEdit:disabled, QComboBox:disabled {
+    color: #6e6b63;
+    background-color: #17171a;
+}
+
+QComboBox QAbstractItemView {
+    background-color: #17171a;
+    border: 1px solid #3a3a2e;
+    selection-background-color: #ffc400;
+    selection-color: #121212;
+}
+
+/* ------------------------------------------------------------- buttons --- */
+
+QPushButton {
+    background-color: #1f1f23;
+    border: 1px solid #3a3a2e;
+    border-radius: 3px;
+    padding: 6px 16px;
+    color: #e6e4dc;
+}
+
+QPushButton:hover {
+    background-color: #2a2a1c;
+    border: 1px solid #ffc400;
+    color: #ffd453;
+}
+
+QPushButton:pressed {
+    background-color: #ffc400;
+    color: #121212;
+}
+
+QPushButton:default {
+    border: 1px solid #ffc400;
+    color: #ffc400;
+    font-weight: bold;
+}
+
+QPushButton:default:hover {
+    background-color: #ffc400;
+    color: #121212;
+}
+
+QPushButton:disabled {
+    background-color: #17171a;
+    border: 1px solid #2a2a28;
+    color: #6e6b63;
+}
+
+/* ------------------------------------------------------- check and radio --- */
+
+QCheckBox, QRadioButton {
+    spacing: 7px;
+    color: #e6e4dc;
+    background: transparent;
+}
+
+QCheckBox:disabled, QRadioButton:disabled {
+    color: #6e6b63;
+}
+
+QCheckBox::indicator, QRadioButton::indicator,
+QTreeWidget::indicator, QTreeView::indicator {
+    width: 13px;
+    height: 13px;
+    background-color: #1f1f23;
+    border: 1px solid #5a5a4a;
+}
+
+QRadioButton::indicator {
+    border-radius: 7px;
+}
+
+QCheckBox::indicator:hover, QRadioButton::indicator:hover,
+QTreeWidget::indicator:hover, QTreeView::indicator:hover {
+    border: 1px solid #ffc400;
+}
+
+QCheckBox::indicator:checked, QRadioButton::indicator:checked,
+QTreeWidget::indicator:checked, QTreeView::indicator:checked {
+    background-color: #ffc400;
+    border: 1px solid #ffc400;
+}
+
+QCheckBox::indicator:indeterminate,
+QTreeWidget::indicator:indeterminate, QTreeView::indicator:indeterminate {
+    background-color: #8a6f12;
+    border: 1px solid #ffc400;
+}
+
+QCheckBox::indicator:disabled, QRadioButton::indicator:disabled,
+QTreeWidget::indicator:disabled, QTreeView::indicator:disabled {
+    background-color: #17171a;
+    border: 1px solid #2a2a28;
+}
+
+/* A selected row is filled with the accent colour, so an accent coloured
+ * indicator on it would be invisible. On those rows the indicator inverts:
+ * dark border when empty, solid dark fill when ticked. */
+
+QTreeWidget::indicator:selected, QTreeView::indicator:selected {
+    background-color: transparent;
+    border: 1px solid #121212;
+}
+
+QTreeWidget::indicator:checked:selected, QTreeView::indicator:checked:selected {
+    background-color: #121212;
+    border: 1px solid #121212;
+}
+
+/* ----------------------------------------------------------- scrollbars --- */
+
+QScrollBar:vertical {
+    background-color: #0f0f10;
+    width: 12px;
+    margin: 0;
+}
+
+QScrollBar::handle:vertical {
+    background-color: #3a3a2e;
+    min-height: 24px;
+    border-radius: 6px;
+    margin: 2px;
+}
+
+QScrollBar::handle:vertical:hover {
+    background-color: #ffc400;
+}
+
+QScrollBar:horizontal {
+    background-color: #0f0f10;
+    height: 12px;
+    margin: 0;
+}
+
+QScrollBar::handle:horizontal {
+    background-color: #3a3a2e;
+    min-width: 24px;
+    border-radius: 6px;
+    margin: 2px;
+}
+
+QScrollBar::handle:horizontal:hover {
+    background-color: #ffc400;
+}
+
+QScrollBar::add-line, QScrollBar::sub-line {
+    height: 0;
+    width: 0;
+    background: none;
+    border: none;
+}
+
+QScrollBar::add-page, QScrollBar::sub-page {
+    background: none;
+}
+
+/* ---------------------------------------------------------------- tabs --- */
+
+QTabWidget::pane {
+    background-color: #17171a;
+    border: 1px solid #3a3a2e;
+}
+
+QTabBar::tab {
+    background-color: #17171a;
+    border: 1px solid #3a3a2e;
+    border-bottom: none;
+    padding: 6px 14px;
+    color: #9a978c;
+}
+
+QTabBar::tab:selected {
+    background-color: #1f1f23;
+    color: #ffc400;
+    font-weight: bold;
+}
+
+QTabBar::tab:hover:!selected {
+    background-color: #2a2a1c;
+    color: #e6e4dc;
+}
+
+/* -------------------------------------------------------------- labels --- */
+
+QLabel {
+    background: transparent;
+    color: #e6e4dc;
+}
+
+QLabel[accent="true"] {
+    color: #ffc400;
+    font-weight: bold;
+}
+
+QLabel[dim="true"] {
+    color: #9a978c;
+}
+
+QProgressBar {
+    background-color: #17171a;
+    border: 1px solid #3a3a2e;
+    border-radius: 3px;
+    text-align: center;
+    color: #e6e4dc;
+}
+
+QProgressBar::chunk {
+    background-color: #ffc400;
+}

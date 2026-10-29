@@ -9,10 +9,9 @@ vit9696. Release notes for that tag:
 > * Added new EIST lock patches for UEFIPatch
 > * Fixed mishandling trailing newline in UEFIPatch
 
-All work here is in **UEFIPatch**, the command line patching utility, plus one
-bounds-check fix in the shared engine. The GUI, UEFIReplace, the LZMA and
-Tiano codecs and the FFS parser are untouched apart from that one fix, and the
-GUI still builds.
+Work here is in **UEFIPatch**, in the **GUI**, and one bounds-check fix in
+the shared engine. UEFIReplace, the LZMA and Tiano codecs and the FFS parser
+are untouched apart from that fix.
 
 Files changed:
 
@@ -23,6 +22,19 @@ Files changed:
 | `UEFIPatch/uefipatch.h` | rewritten |
 | `ffsengine.cpp` | 1 bounds check |
 | `version.h` | version string -> `0.28.0-perf1` |
+| `uefitool.cpp`, `uefitool.h` | Tweaks and View menus, preset application |
+| `uefitool.pro`, `UEFIPatch/uefipatch.pro` | new sources and the resource |
+
+Files added:
+
+| File | What it is |
+| --- | --- |
+| `patchset.h`, `patchset.cpp` | patch file parsing and applying, shared by the GUI and UEFIPatch |
+| `presetdialog.h`, `presetdialog.cpp` | the preset list |
+| `theme.h`, `theme.cpp`, `theme/dark-yellow.qss`, `uefitool.qrc` | the yellow on black theme |
+
+`uefitool.ui` is **not** modified: the Tweaks and View menus are built in
+code and inserted before Help, so the form stays exactly as upstream drew it.
 
 ## Bugs fixed
 
@@ -223,6 +235,49 @@ are reported separately for things that are suspicious but legal:
 - a section type outside the documented list,
 - an unknown `#!` directive.
 
+## GUI changes
+
+Covered at length in [gui-guide.md](gui-guide.md); in summary:
+
+- **A yellow on black theme**, in one stylesheet compiled in as a Qt
+  resource, with a **View -> Yellow on black theme** toggle that takes effect
+  without a restart and is remembered between sessions. The accent is only
+  ever used on a near black background and anything on an accent fill is
+  drawn in `#121212`, so contrast stays above 4.5:1 both ways. A ticked
+  checkbox on a selected row inverts to a dark square, because an accent
+  coloured one would vanish into the accent coloured selection.
+- **Tweaks -> Performance presets...** (Ctrl+T), enabled once an image is
+  open. Presets are grouped by platform, carry a risk and a description, and
+  the pane below the list shows the caveat and which modules a preset
+  touches. **Apply tweaks** patches the open image wherever the patterns
+  match, then reports how many lines applied and how many did not and offers
+  to rebuild and save. When nothing matched it says so rather than implying
+  the image changed.
+- **Patch every copy of a module** is on by default, so a module present in
+  several volumes is patched in all of them.
+- **Load preset file...** reads any file in the preset format, so patterns
+  you derive yourself appear in the list without rebuilding anything.
+
+Entries with nothing to apply (the AMD and Graphics groups) are shown as
+notes, not as tickable presets. There are no upstream byte patterns for
+those, and none were invented, so the dialog explains the route that does
+work instead of offering a button that would do nothing.
+
+### Shared parsing
+
+Patch file parsing, validation and application moved out of `uefipatch.cpp`
+into `patchset.cpp`, which both the GUI and UEFIPatch link. That is what
+makes the GUI and the command line tool produce the same bytes from the same
+preset, and `tests/run_gui_tests.sh` ends by diffing the two to prove it.
+
+Two directives were added for the GUI, both of which older builds still read
+as comments:
+
+```
+#!platform <name>   group the sets declared after this under <name>
+#!info <text>       an entry with no patch lines, explaining what to do instead
+```
+
 ## Compatibility
 
 - Old patch files work unchanged; `#!` directives are comments to older
@@ -236,6 +291,8 @@ are reported separately for things that are suspicious but legal:
   `qSort()` deprecations in `ffsengine.cpp`, none from the changed files.
 
 ## Tests
+
+### Command line
 
 `tests/run_tests.sh` builds UEFIPatch (or takes a binary as its argument) and
 runs 37 cases against a synthetic firmware volume built by
@@ -256,11 +313,33 @@ ok    truncated patch spec is rejected, not a crash
 37 passed, 0 failed
 ```
 
+### GUI
+
+`tests/run_gui_tests.sh` builds `tests/guicheck`, which links the same
+sources as UEFITool but with its own `main()`, and runs 53 checks under Qt's
+offscreen platform plugin. No X server and no real firmware are needed. It
+covers the theme resource and toggle, the menu layout (including that Help
+stays last), presets being disabled until an image is open, platform
+grouping, which rows are tickable, and selection reporting. It renders the
+screenshots used in the documentation, and finishes by running the same
+apply sequence the GUI performs and diffing the result against the image
+UEFIPatch produces from the same preset.
+
+```
+$ tests/run_gui_tests.sh
+...
+53 passed, 0 failed
+
+Cross-checking the GUI apply path against UEFIPatch
+ok    the GUI and UEFIPatch produce a byte-identical image
+
+GUI tests passed.
+```
+
 ## Not done
 
-- The GUI has no idea about patch sets. It was out of scope and the one
-  engine change does not affect it.
 - `UEFIReplace` is untouched, including its own copy of the GUID handling.
+- The preset dialog cannot edit or create presets, only load a file.
 - The `patchViaPattern()` matcher still builds a hex string of the whole
   section body and runs a `QRegExp` over it, which is slow on large sections.
   It is correct, so it was left alone.

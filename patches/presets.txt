@@ -1,0 +1,199 @@
+# UEFITool performance presets
+# ============================
+#
+# This is the file the Tweaks -> Performance presets dialog loads. It uses the
+# same line format as patches/performance.txt and the same #!set directives,
+# plus #!platform to group presets by chip and #!info for an entry that
+# deliberately has nothing to apply.
+#
+# Line format:
+#   FileGuid SectionType PatchType:FindPatternOrOffset:ReplacePattern
+#
+# Directives:
+#   #!platform <name>  every set declared after this is grouped under <name>
+#   #!set <id>         start a set
+#   #!desc <text>      the name shown in the preset list
+#   #!risk <word>      low, medium or high
+#   #!note <text>      caveat shown when the preset is selected
+#   #!info <text>      an entry with no patch lines; explains what to do instead
+#
+# All of them start with '#', so an older UEFIPatch reads this whole file as
+# a plain patch file and ignores them.
+#
+# Read docs/risks-and-recovery.md before flashing anything made with these.
+#
+# ---------------------------------------------------------------------------
+# Why the Intel group has patterns and the others do not
+# ---------------------------------------------------------------------------
+# A patch line is a byte pattern, and the compiler that built your firmware
+# chose those bytes. A pattern therefore depends on the vendor, the board and
+# often the exact BIOS build. The Intel sets below are the patterns that ship
+# with upstream UEFITool, which are known to have worked on the platforms
+# their comments name. Nothing here was invented: an invented pattern either
+# silently matches nothing, or matches the wrong thing and bricks a board.
+#
+# For AMD and for graphics there are no upstream patterns at all, so those
+# groups hold notes explaining the route that does work instead. Once you
+# derive your own patterns with tools/msr-lock-scan.py and
+# docs/pattern-cookbook.md, add them here with their own #!set and they show
+# up in the dialog.
+
+
+#============================================================================
+#!platform Intel
+#============================================================================
+
+#----------------------------------------------------------------------------
+#!set intel-cstate-unlock
+#!desc Unlock CPU C-state control (MSR 0xE2)
+#!risk medium
+#!note Firmware sets a lock bit in MSR_PKG_CST_CONFIG_CONTROL and the register
+#!note then stays read-only until the next reset, so no OS tool can change the
+#!note package C-state limit. This stops it being locked. The image stays
+#!note bootable; what changes is that a mistuned C-state limit set afterwards
+#!note can hang or reboot the machine, which a CMOS clear undoes. Useful for
+#!note frametime consistency work, not for average frame rate.
+#----------------------------------------------------------------------------
+
+# PowerMgmtDxe | Haswell
+F7731B4C-58A2-4DF4-8980-5645D39ECE58 10 P:75080FBAE80F89442430:EB080FBAE80F89442430
+
+# PowerMgmtDxe | Haswell-E
+F7731B4C-58A2-4DF4-8980-5645D39ECE58 10 P:0FBA6C24380F:0FBA7424380F
+
+# PowerManagement | Sandy Bridge with ME 8.xx, Ivy Bridge
+8C783970-F02A-4A4D-AF09-8797A51EEC8D 10 P:75080FBAE80F89442430:EB080FBAE80F89442430
+
+# PowerManagement | New SB-E/IB-E
+8C783970-F02A-4A4D-AF09-8797A51EEC8D 10 P:0FBA6C24380F:0FBA7424380F
+
+# CpuPei | Sandy Bridge with ME 7.xx, old SB-E/IB-E
+2BB5AFA9-FF33-417B-8497-CB773C2B93BF 10 P:800018EB050D0080:000018EB050D0000
+
+# PpmInitialize | Broadwell-E
+3FFCAE95-23CF-4967-94F5-16352F68E43B 10 P:0FBA6C24400F:0FBA7424400F
+
+# SiInit | Skylake
+299D6F8B-2EC9-4E40-9EC6-DDAA7EBF5FD9 10 P:75080D00800000:EB080D00800000
+299D6F8B-2EC9-4E40-9EC6-DDAA7EBF5FD9 12 P:75080D00800000:EB080D00800000
+
+# SiInit | Kaby Lake
+299D6F8B-2EC9-4E40-9EC6-DDAA7EBF5FD9 10 P:81E10080000033C1:9090909090909090
+299D6F8B-2EC9-4E40-9EC6-DDAA7EBF5FD9 12 P:81E10080000033C1:9090909090909090
+
+# PpmInitialize | Skylake-X
+3FFCAE95-23CF-4967-94F5-16352F68E43B 10 P:742CB9E2000000:752CB9E2000000
+
+# CpuInitPei | Skylake-X
+01359D99-9446-456D-ADA4-50A711C03ADA 12 P:BE0080000023CE0B:BE0000000023CE0B
+
+
+#----------------------------------------------------------------------------
+#!set intel-hedt-power-unlock
+#!desc Unlock C-state and EIST coordination on HEDT and server chipsets (MSR 0xE2 + 0x1AA)
+#!risk medium
+#!note For X299, C422 and C620 boards, which lock MSR_MISC_PWR_MGMT in the same
+#!note routine as MSR 0xE2. Same exposure as the preset above. Apply this one
+#!note instead of it on those platforms, not as well.
+#----------------------------------------------------------------------------
+
+# PpmInitialize | 0xE2 & 0x1AA unlock for C422 chipsets and some X299 chipsets
+3FFCAE95-23CF-4967-94F5-16352F68E43B 10 P:4889442430....0FBAE8:4889442430....0FBAE0
+3FFCAE95-23CF-4967-94F5-16352F68E43B 10 P:4889442450....0FBAE8:4889442450....0FBAE0
+
+# PpmInitialize | 0xE2 & 0x1AA unlock for C620 chipsets
+3FFCAE95-23CF-4967-94F5-16352F68E43B 10 P:480BC2BA00200000:480BC2BA00000000
+3FFCAE95-23CF-4967-94F5-16352F68E43B 10 P:480BC2BA00800000:480BC2BA00000000
+
+
+#----------------------------------------------------------------------------
+#!set intel-settings-note
+#!desc Where the Intel frame rate actually is
+#!info Power limits (PL1, PL2, IccMax, AC Loadline), the ring ratio, memory
+#!info timings and Gear mode are setup menu settings, not byte patterns, and
+#!info they are worth far more frame rate than anything on this list. If your
+#!info board hides them, write the NVRAM variable instead of patching: dump the
+#!info firmware, read the Setup module's IFR with IFRExtractor-RS to get the
+#!info VarStore offset, then set it with setup_var.efi from a UEFI shell. No
+#!info reflash, and a CMOS clear undoes it. See
+#!info docs/bios-performance-guide.md, "Reaching settings the vendor hid".
+#----------------------------------------------------------------------------
+
+
+#============================================================================
+#!platform AMD
+#============================================================================
+
+#----------------------------------------------------------------------------
+#!set amd-no-patterns
+#!desc No binary patches exist for AMD here
+#!info Upstream UEFITool ships no patch patterns for AMD platform firmware,
+#!info and none were invented for this project. There is nothing to click.
+#!info This is not much of a loss: the AMD performance levers are all settings.
+#!info Curve Optimizer and PBO limits (PPT, TDC, EDC) are usually the largest
+#!info single gain after memory, and memory means EXPO or XMP on, with
+#!info FCLK:UCLK:MCLK at 1:1 for as long as the controller allows it. On AM4,
+#!info Power Supply Idle Control set to Typical Current Idle fixes a family of
+#!info idle reboots and WHEA errors that look like a bad overclock.
+#!info If your board hides any of these, write the NVRAM variable rather than
+#!info patching: see docs/bios-performance-guide.md. If you do derive AMD
+#!info patterns from your own dump with tools/msr-lock-scan.py, add them to
+#!info this file under their own #!set and they will appear here.
+#----------------------------------------------------------------------------
+
+
+#============================================================================
+#!platform Graphics
+#============================================================================
+
+#----------------------------------------------------------------------------
+#!set gpu-resizable-bar-note
+#!desc Resizable BAR is a setting, not a patch
+#!info Resizable BAR is worth up to roughly 10-15% in some titles, which makes
+#!info it one of the few real frame rate wins in firmware. It is a setup
+#!info setting, not a byte pattern: turn on Resizable BAR and Above 4G
+#!info Decoding, and turn CSM off. All three together, or it does nothing.
+#!info On a board that hides them, the NVRAM variable route works; on some
+#!info older boards the capability is genuinely absent from the firmware and no
+#!info amount of patching adds it.
+#----------------------------------------------------------------------------
+
+#----------------------------------------------------------------------------
+#!set gpu-vbios-note
+#!desc GPU VBIOS is not a UEFI image
+#!info A graphics card's own firmware is not an FFS image, so UEFITool can
+#!info neither parse nor patch it and nothing here will touch it. Tuning a card
+#!info means its power limit and clock offsets from the operating system, or a
+#!info vendor specific VBIOS tool, both of which are outside this project.
+#!info The GOP driver that does sit in system firmware only runs before the OS
+#!info loads its own graphics driver, so patching it changes nothing in a game.
+#----------------------------------------------------------------------------
+
+
+#============================================================================
+#!platform Other
+#============================================================================
+
+#----------------------------------------------------------------------------
+#!set sgx-launch-control
+#!desc Keep SGX launch control writable (Gemini Lake)
+#!risk low
+#!note Not a performance patch. It ships with upstream UEFIPatch and is listed
+#!note so this file covers everything upstream had. No effect on clocks, power
+#!note or frame rate.
+#----------------------------------------------------------------------------
+
+# SiInit | Gemini Lake
+299D6F8B-2EC9-4E40-9EC6-DDAA7EBF5FD9 10 P:B93A0000000F320D00000400:B93A0000000F320D00000600
+
+
+#----------------------------------------------------------------------------
+#!set pointer-protocol-fix
+#!desc Fix setup screen mouse clicks on ASUS Z87-Pro
+#!risk low
+#!note Board specific fix for a broken EFI_SIMPLE_POINTER_PROTOCOL click
+#!note condition. Setup screen input only, nothing the OS ever runs.
+#----------------------------------------------------------------------------
+
+# UHCD | ASUS Z87-Pro
+580DD900-385D-11D7-883A-00500473D4EB 10 P:807A3200745C807A4000:807A32007506807A4000

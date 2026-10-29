@@ -37,7 +37,10 @@
 #include "basetypes.h"
 #include "ffs.h"
 #include "ffsengine.h"
+#include "patchset.h"
+#include "presetdialog.h"
 #include "searchdialog.h"
+#include "theme.h"
 
 namespace Ui {
     class UEFITool;
@@ -80,6 +83,9 @@ public:
     void rebuild();
 	void doNotRebuild();
 
+    void openPresets();
+    void toggleTheme(bool enabled);
+
     void remove();
 
     void copyMessage();
@@ -97,6 +103,9 @@ private:
     Ui::UEFITool* ui;
     FfsEngine* ffsEngine;
     SearchDialog* searchDialog;
+    PresetDialog* presetDialog;
+    QAction* actionPresets;
+    QAction* actionTheme;
     QClipboard* clipboard;
     QString currentDir;
     QString currentProgramPath;
@@ -104,6 +113,8 @@ private:
     const QString version;
 
     void showMessages();
+    void buildExtraMenus();
+    void applyPresets(const QStringList & setIds, bool allCopies);
 
     void dragEnterEvent(QDragEnterEvent* event);
     void dropEvent(QDropEvent* event);

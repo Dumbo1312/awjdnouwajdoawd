@@ -10,6 +10,7 @@ DEFINES  += _CONSOLE
 SOURCES  += uefipatch_main.cpp \
  uefipatch.cpp \
  ../types.cpp \
+ ../patchset.cpp \
  ../descriptor.cpp \
  ../ffs.cpp \
  ../ffsengine.cpp \
@@ -27,6 +28,7 @@ SOURCES  += uefipatch_main.cpp \
  ../Tiano/EfiTianoCompressLegacy.c
 
 HEADERS  += uefipatch.h \
+ ../patchset.h \
  ../basetypes.h \
  ../descriptor.h \
  ../gbe.h \

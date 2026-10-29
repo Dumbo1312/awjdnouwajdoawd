@@ -19,44 +19,11 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 #include <QString>
 #include <QStringList>
 #include <QFileInfo>
-#include <QUuid>
-#include <QVector>
 
 #include "../basetypes.h"
 #include "../ffs.h"
 #include "../ffsengine.h"
-
-// Outcome of a single patch entry after a run
-#define PATCH_STATUS_NOT_RUN  0
-#define PATCH_STATUS_APPLIED  1
-#define PATCH_STATUS_MISSED   2
-#define PATCH_STATUS_SKIPPED  3
-
-// One "FileGuid SectionType Patch [Patch...]" line of a patch file, or the
-// single line given on the command line with -p
-struct PatchEntry {
-    PatchEntry();
-    QByteArray guid;             // raw 16 byte EFI_GUID
-    QString guidText;            // GUID as it was written, for reports
-    UINT8 sectionType;
-    QVector<PatchData> patches;
-    QString setId;               // #!set block this entry belongs to
-    QString label;               // nearest preceding plain comment line
-    UINT32 lineNumber;
-    UINT8 status;
-    UINT32 sectionsPatched;
-};
-
-// A #!set block: a named group of entries that can be selected or excluded
-// as a unit. Set directives are ordinary comments to any older UEFIPatch.
-struct PatchSet {
-    PatchSet();
-    QString id;
-    QString description;
-    QString risk;                // one word: low, medium, high
-    QString note;                // longer caveat, printed under the set
-    QVector<int> entries;        // indexes into the entry vector
-};
+#include "../patchset.h"
 
 // Run time options that are not paths
 struct PatchOptions {
@@ -85,7 +52,7 @@ public:
     // Parses a single "FileGuid SectionType Patch" command line argument.
     UINT8 loadPatchArgument(const QString & patch);
 
-    // Prints one line per set found by the last successful load.
+    // Prints the sets found by the last successful load.
     void listSets() const;
 
     // Applies the loaded patches to path, writing the result to outputPath.
@@ -102,25 +69,13 @@ public:
     UINT8 patchFromArg(const QString & path, const QString & patch, const QString & outputPath);
 
 private:
-    UINT8 parsePatchLine(const QByteArray & line, UINT32 lineNumber,
-                         const QString & setId, const QString & label,
-                         PatchEntry & entry);
-    UINT8 parsePatchSpec(const QByteArray & spec, UINT32 lineNumber, PatchData & patch);
     bool isSelected(const PatchEntry & entry, const PatchOptions & options) const;
-    UINT8 applyEntry(PatchEntry & entry, const PatchOptions & options);
-    UINT8 patchSections(const QModelIndex & index, const QByteArray & fileGuid,
-                        const UINT8 sectionType, const QVector<PatchData> & patches,
-                        bool allCopies, UINT32 & sectionsPatched);
     void printReport(const PatchOptions & options) const;
-    PatchSet & currentSet(const QString & id);
 
     FfsEngine* ffsEngine;
     TreeModel* model;
-    QVector<PatchEntry> entries;
-    QVector<PatchSet> sets;
-    QStringList warnings;
-    QString errorText;
-    QString sourceName;
+    PatchCatalog catalog;
+    QString errorText;           // errors raised by run(), not by loading
 };
 
 #endif

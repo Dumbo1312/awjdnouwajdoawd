@@ -1,16 +1,27 @@
 # UEFITool 0.28.0, modified, with a firmware performance toolkit
 
 UEFITool 0.28.0 from [LongSoft/UEFITool](https://github.com/LongSoft/UEFITool)
-with a reworked **UEFIPatch**, a patch database organised into named sets, a
-helper for finding your own patch patterns, and documentation on which BIOS
-changes actually move frame rate.
+with a yellow on black GUI and a one-click preset list, a reworked
+**UEFIPatch**, a patch database organised into named sets, a helper for
+finding your own patch patterns, and documentation on which BIOS changes
+actually move frame rate.
 
 Base commit: `d9642c53e7b873fcce858ec2bea577f099b966d5` (tag `0.28.0`).
 
+![The preset dialog](docs/images/preset-dialog.png)
+
 ## Kratko (hrvatski)
 
-- `UEFITool-0.28.0/` je originalni source s izmjenama. Mijenjan je samo
-  **UEFIPatch** plus jedan popravak granica u `ffsengine.cpp`.
+- **GUI**: nova žuto-crna tema (View -> Yellow on black theme, pamti se) i
+  **Tweaks -> Performance presets...** (Ctrl+T). Odabereš presete, stisneš
+  *Apply tweaks*, program patcha otvoreni BIOS svugdje gdje pattern paše i
+  javi *"Tweaked. N patch line(s) applied... Rebuild the image and save it
+  now?"* Detalji: [`docs/gui-guide.md`](docs/gui-guide.md).
+- Preseti su grupirani po platformi: **Intel** ima dva stvarna preseta
+  (otključavanje MSR 0xE2 i 0xE2+0x1AA), **AMD** i **Graphics** nemaju što
+  primijeniti i dijalog to pošteno kaže umjesto da nudi gumb koji ne radi
+  ništa — objašnjeno u `docs/gui-guide.md`.
+- `UEFITool-0.28.0/` je originalni source s izmjenama.
 - **Popravljeno 5 pravih bugova u originalu**, uključujući segfault i
   čitanje izvan heapa koje je upisivalo smeće iz memorije u BIOS sliku.
   Detalji i reprodukcija: [`docs/tool-changes.md`](docs/tool-changes.md).
@@ -32,14 +43,32 @@ Base commit: `d9642c53e7b873fcce858ec2bea577f099b966d5` (tag `0.28.0`).
 Needs Qt 4 or Qt 5. Verified here with Qt 5.15.
 
 ```sh
-cd UEFITool-0.28.0/UEFIPatch
-qmake uefipatch.pro && make
+cd UEFITool-0.28.0
+qmake uefitool.pro && make          # the GUI
 ```
 
-The GUI (`UEFITool-0.28.0/uefitool.pro`) and `UEFIReplace` build the same way
-and are unchanged.
 
-## Using it
+```sh
+cd UEFITool-0.28.0/UEFIPatch
+qmake uefipatch.pro && make         # the command line patcher
+```
+
+`UEFIReplace` builds the same way and is unchanged.
+
+## Using the GUI
+
+Open an image, then **Tweaks -> Performance presets...** (Ctrl+T). Tick the
+presets you want and press **Apply tweaks**; the patterns are applied
+wherever they match the open image and you get a per-line report and an
+offer to rebuild and save. If nothing matched, it says so instead of
+pretending the image changed.
+
+**View -> Yellow on black theme** toggles the theme without a restart.
+
+[`docs/gui-guide.md`](docs/gui-guide.md) covers both, including how to add
+your own presets.
+
+## Using the command line tool
 
 ```sh
 # what is in the patch database
@@ -75,10 +104,15 @@ every hit before patching.
 ## What is here
 
 ```
-UEFITool-0.28.0/     upstream source, with the UEFIPatch changes
+UEFITool-0.28.0/     upstream source, with the GUI and UEFIPatch changes
+  theme/             the yellow on black stylesheet
+  presetdialog.*     the preset list
+  patchset.*         patch file parsing and applying, shared by GUI and CLI
 patches/
-  performance.txt    upstream patch database, reorganised into named sets
+  presets.txt        the preset catalog the GUI loads, grouped by platform
+  performance.txt    the same patterns as a plain UEFIPatch database
 docs/
+  gui-guide.md                the theme and the preset dialog
   bios-performance-guide.md   which firmware changes affect frame rate
   pattern-cookbook.md         deriving UEFIPatch patterns for your own board
   risks-and-recovery.md       Boot Guard, protected regions, getting back
@@ -86,7 +120,9 @@ docs/
 tools/
   msr-lock-scan.py   find candidate MSR lock sites in an extracted module
 tests/
-  run_tests.sh       37 regression cases
+  run_tests.sh       37 command line regression cases
+  run_gui_tests.sh   53 GUI checks plus a GUI/CLI byte-for-byte cross-check
+  guicheck/          the headless GUI test program
   make_test_image.py builds the synthetic firmware volume they run against
 ```
 
@@ -121,21 +157,28 @@ that.
 ## Tests
 
 ```sh
-tests/run_tests.sh              # builds UEFIPatch itself
+tests/run_tests.sh                      # 37 command line cases
 tests/run_tests.sh /path/to/UEFIPatch   # or test an existing binary
+tests/run_gui_tests.sh                  # 53 GUI cases, no X server needed
 ```
 
-37 cases against a synthetic FFS2 volume built by `tests/make_test_image.py`
+Both run against a synthetic FFS2 volume built by `tests/make_test_image.py`
 — real headers and checksums, four modules, one a deliberate duplicate — so
-nothing needs anyone's real firmware.
+nothing needs anyone's real firmware. The GUI tests run under Qt's offscreen
+platform plugin, render the screenshots in this README, and finish by
+checking that applying a preset through the GUI's code path produces a
+byte-identical image to the one UEFIPatch produces from the same preset.
 
 ## Honest scope
 
 - **No new byte patterns were invented.** Every live patch line in
-  `patches/performance.txt` comes from upstream UEFITool. Patterns depend on
-  the vendor, the board and often the exact BIOS build, so a fabricated one
-  is worse than none. The scanner and the cookbook are there to derive your
-  own.
+  `patches/presets.txt` and `patches/performance.txt` comes from upstream
+  UEFITool. Patterns depend on the vendor, the board and often the exact
+  BIOS build, so a fabricated one is worse than none. This is why the AMD
+  and Graphics preset groups have nothing to apply: there is no honest
+  content for them, and the dialog says so rather than offering a button
+  that does nothing. The scanner and the cookbook are there to derive your
+  own, and anything you add to `patches/presets.txt` appears in the dialog.
 - **Patching firmware is not where the frame rate is.** Memory timings, power
   limits and Resizable BAR are, and on most boards those are settings you
   already have. Binary patching only removes locks that stop you reaching

@@ -4,6 +4,7 @@ Makefile
 moc_*.cpp
 qrc_*.cpp
 ui_*.h
+*.qrc.depends
 .qmake.stash
 
 # in-tree build products, named by path so they do not shadow the
@@ -11,6 +12,7 @@ ui_*.h
 /UEFITool-0.28.0/UEFITool
 /UEFITool-0.28.0/UEFIPatch/UEFIPatch
 /UEFITool-0.28.0/UEFIReplace/UEFIReplace
+/tests/guicheck/guicheck
 
 # firmware dumps and patched images: never commit somebody's BIOS
 *.bin

@@ -11,6 +11,10 @@
 
   */
 
+#include <QAction>
+#include <QKeySequence>
+#include <QMenuBar>
+
 #include "version.h"
 #include "uefitool.h"
 #include "ui_uefitool.h"
@@ -25,7 +29,12 @@ version(tr(PROGRAM_VERSION))
     // Create UI
     ui->setupUi(this);
     searchDialog = new SearchDialog(this);
+    presetDialog = NULL;
     ffsEngine = NULL;
+
+    // Tweaks and View menus are built in code rather than in the .ui file, so
+    // that the form stays exactly as upstream drew it.
+    buildExtraMenus();
 
     // Set window title
     this->setWindowTitle(tr("UEFITool %1").arg(version));
@@ -84,6 +93,7 @@ UEFITool::~UEFITool()
     delete ui;
     delete ffsEngine;
     delete searchDialog;
+    delete presetDialog;
 }
 
 void UEFITool::setProgramPath(QString path)
@@ -110,6 +120,8 @@ void UEFITool::init()
     ui->menuSectionActions->setDisabled(true);
     ui->actionMessagesCopy->setDisabled(true);
     ui->actionMessagesCopyAll->setDisabled(true);
+    if (actionPresets)
+        actionPresets->setDisabled(true);
 
     // Make new ffsEngine
     if (ffsEngine)
@@ -630,6 +642,12 @@ void UEFITool::openImageFile(QString path)
     // Enable search
     ui->actionSearch->setEnabled(true);
 
+    // Presets patch the parsed tree, so they need a parsed tree to exist. A
+    // partially parsed image still has one, and a preset that finds nothing
+    // in it simply reports that it matched nothing.
+    if (actionPresets)
+        actionPresets->setEnabled(true);
+
     // Set current directory
     currentDir = fileInfo.absolutePath();
 }
@@ -761,6 +779,12 @@ void UEFITool::readSettings()
     ui->structureTreeView->setColumnWidth(1, settings.value("tree/columnWidth1", ui->structureTreeView->columnWidth(1)).toInt());
     ui->structureTreeView->setColumnWidth(2, settings.value("tree/columnWidth2", ui->structureTreeView->columnWidth(2)).toInt());
     ui->structureTreeView->setColumnWidth(3, settings.value("tree/columnWidth3", ui->structureTreeView->columnWidth(3)).toInt());
+
+    // The theme is on unless it was explicitly turned off before.
+    const bool themeOn = settings.value("ui/yellowOnBlack", true).toBool();
+    if (actionTheme)
+        actionTheme->setChecked(themeOn);
+    Theme::apply(themeOn);
 }
 
 void UEFITool::writeSettings()
@@ -776,4 +800,150 @@ void UEFITool::writeSettings()
     settings.setValue("tree/columnWidth1", ui->structureTreeView->columnWidth(1));
     settings.setValue("tree/columnWidth2", ui->structureTreeView->columnWidth(2));
     settings.setValue("tree/columnWidth3", ui->structureTreeView->columnWidth(3));
+    settings.setValue("ui/yellowOnBlack", actionTheme ? actionTheme->isChecked() : true);
+}
+
+void UEFITool::buildExtraMenus()
+{
+    // Tweaks
+    QMenu* tweaksMenu = new QMenu(tr("&Tweaks"), this);
+    actionPresets = tweaksMenu->addAction(tr("&Performance presets..."));
+    actionPresets->setShortcut(QKeySequence("Ctrl+T"));
+    actionPresets->setStatusTip(tr("Apply a group of patches to the open image"));
+    actionPresets->setDisabled(true);
+    connect(actionPresets, SIGNAL(triggered()), this, SLOT(openPresets()));
+
+    // View
+    QMenu* viewMenu = new QMenu(tr("&View"), this);
+    actionTheme = viewMenu->addAction(tr("&Yellow on black theme"));
+    actionTheme->setCheckable(true);
+    actionTheme->setChecked(true);
+    actionTheme->setStatusTip(tr("Switch between the yellow on black theme and the system style"));
+    connect(actionTheme, SIGNAL(toggled(bool)), this, SLOT(toggleTheme(bool)));
+
+    // Inserted before Help so that Help stays the last menu.
+    ui->menuBar->insertMenu(ui->menuHelp->menuAction(), viewMenu);
+    ui->menuBar->insertMenu(ui->menuHelp->menuAction(), tweaksMenu);
+}
+
+void UEFITool::toggleTheme(bool enabled)
+{
+    Theme::apply(enabled);
+}
+
+void UEFITool::openPresets()
+{
+    if (!presetDialog) {
+        presetDialog = new PresetDialog(this);
+        if (!presetDialog->loadCatalog(PresetDialog::defaultCatalogPath())) {
+            // Not fatal: the dialog opens empty and offers to load a file.
+            QMessageBox::warning(this, tr("No presets loaded"), presetDialog->lastError(),
+                QMessageBox::Ok);
+        }
+        else {
+            const QStringList complaints = presetDialog->catalog().warnings();
+            if (!complaints.isEmpty()) {
+                QMessageBox::warning(this, tr("Preset file warnings"), complaints.join("\n"),
+                    QMessageBox::Ok);
+            }
+        }
+    }
+
+    if (presetDialog->exec() != QDialog::Accepted)
+        return;
+
+    applyPresets(presetDialog->selectedSets(), presetDialog->allCopies());
+}
+
+void UEFITool::applyPresets(const QStringList & setIds, bool allCopies)
+{
+    if (!ffsEngine || !presetDialog || setIds.isEmpty())
+        return;
+
+    TreeModel* model = ffsEngine->treeModel();
+    if (!model || !model->index(0, 0).isValid()) {
+        QMessageBox::warning(this, tr("Nothing to tweak"),
+            tr("Open a firmware image first."), QMessageBox::Ok);
+        return;
+    }
+
+    PatchCatalog & catalog = presetDialog->catalog();
+    catalog.resetStatus();
+    QVector<PatchEntry> & entries = catalog.entries();
+
+    UINT32 applied = 0;
+    UINT32 missed = 0;
+    UINT32 sections = 0;
+    QStringList report;
+
+    for (int i = 0; i < entries.count(); i++) {
+        PatchEntry & entry = entries[i];
+
+        if (!setIds.contains(entry.setId, Qt::CaseInsensitive)) {
+            entry.status = PATCH_STATUS_SKIPPED;
+            continue;
+        }
+
+        const UINT8 result = applyPatchEntry(ffsEngine, model, entry, allCopies);
+        if (result && result != ERR_NOTHING_TO_PATCH) {
+            showMessages();
+            QMessageBox::critical(this, tr("Tweaking failed"),
+                tr("Patch line %1 of %2 failed: %3")
+                    .arg(entry.lineNumber).arg(catalog.sourceName()).arg(errorMessage(result)),
+                QMessageBox::Ok);
+            return;
+        }
+
+        const QString label = entry.label.isEmpty() ? entry.guidText.toUpper() : entry.label;
+        if (entry.status == PATCH_STATUS_APPLIED) {
+            applied++;
+            sections += entry.sectionsPatched;
+            report.append(tr("[applied] %1  (%2 section(s))").arg(label).arg(entry.sectionsPatched));
+        }
+        else {
+            missed++;
+            report.append(tr("[ missed] %1").arg(label));
+        }
+    }
+
+    showMessages();
+
+    if (applied == 0) {
+        ui->statusBar->showMessage(tr("Not tweaked: no pattern matched this image"));
+        QMessageBox box(this);
+        box.setWindowTitle(tr("Nothing matched"));
+        box.setIcon(QMessageBox::Information);
+        box.setText(tr("None of the %1 selected patch line(s) matched this image, so it was "
+                       "not changed.\n\n"
+                       "Patch patterns are specific to a vendor, a board and often a single "
+                       "BIOS build. A preset for another platform will simply find nothing, "
+                       "which is what has happened here.").arg(missed));
+        box.setDetailedText(report.join("\n"));
+        box.setStandardButtons(QMessageBox::Ok);
+        box.exec();
+        return;
+    }
+
+    // The patched sections are already marked in the tree, so saving is what
+    // reconstructs the image. Enable it and offer to do it now.
+    ui->actionSaveImageFile->setEnabled(true);
+    ui->statusBar->showMessage(tr("Tweaked: %1 patch line(s) applied in %2 section(s)")
+        .arg(applied).arg(sections));
+
+    QString text = tr("Tweaked.\n\n%1 patch line(s) applied, changing %2 section(s).")
+        .arg(applied).arg(sections);
+    if (missed > 0)
+        text += tr("\n%1 patch line(s) did not match this image.").arg(missed);
+    text += tr("\n\nRebuild the image and save it now?");
+
+    QMessageBox box(this);
+    box.setWindowTitle(tr("Tweaked"));
+    box.setIcon(QMessageBox::Question);
+    box.setText(text);
+    box.setDetailedText(report.join("\n"));
+    box.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
+    box.setDefaultButton(QMessageBox::Yes);
+
+    if (box.exec() == QMessageBox::Yes)
+        saveImageFile();
 }

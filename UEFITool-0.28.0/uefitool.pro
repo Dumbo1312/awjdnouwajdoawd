@@ -7,6 +7,9 @@ TEMPLATE  = app
 SOURCES  += uefitool_main.cpp \
  uefitool.cpp \
  searchdialog.cpp \
+ presetdialog.cpp \
+ patchset.cpp \
+ theme.cpp \
  types.cpp \
  descriptor.cpp \
  ffs.cpp \
@@ -28,6 +31,9 @@ SOURCES  += uefitool_main.cpp \
 
 HEADERS  += uefitool.h \
  searchdialog.h \
+ presetdialog.h \
+ patchset.h \
+ theme.h \
  basetypes.h \
  descriptor.h \
  gbe.h \
@@ -49,6 +55,8 @@ HEADERS  += uefitool.h \
 
 FORMS    += uefitool.ui \
  searchdialog.ui
+
+RESOURCES += uefitool.qrc
 
 RC_FILE   = uefitool.rc
 
