@@ -4827,7 +4827,12 @@ UINT8 FfsEngine::patchViaOffset(QByteArray & data, const UINT32 offset, const QB
         return ERR_INVALID_PARAMETER;
 
     // Check offset bounds
-    if (offset > (UINT32)(body.length() - hexReplacePattern.length() / 2))
+    // The subtraction is done on signed lengths first: a replace pattern that
+    // is longer than the body used to underflow into a huge unsigned value,
+    // let the check pass, and then read past the end of the body while
+    // expanding ".." placeholders.
+    const int replaceLength = hexReplacePattern.length() / 2;
+    if (replaceLength > body.length() || (INT64)offset > (INT64)(body.length() - replaceLength))
         return ERR_PATCH_OFFSET_OUT_OF_BOUNDS;
 
     // Parse replace pattern

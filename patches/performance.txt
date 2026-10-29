@@ -1,0 +1,148 @@
+# UEFIPatch performance patch database
+# =====================================
+#
+# Line format (unchanged from upstream UEFIPatch):
+#
+#   FileGuid SectionType PatchType:FindPatternOrOffset:ReplacePattern
+#
+# Section types:
+#   PE32 image                    10
+#   Position-independent code     11
+#   TE Image                      12
+#   DXE Dependency                13
+#   Version information           14
+#   User interface string         15
+#   16-bit code                   16
+#   Guided freeform               18
+#   Raw data                      19
+#   PEI Dependency                1B
+#   SMM Dependency                1C
+# Do not use other section types; the resulting image can be broken.
+#
+# Patch types:
+#   P - pattern based: first parameter is a pattern to find, second to replace
+#   O - offset based: first parameter is a hexadecimal offset into the section
+# Patterns can use . as an "any nibble" wildcard.
+#
+# Set directives (this build of UEFIPatch; older builds read them as comments)
+# ---------------------------------------------------------------------------
+#   #!set  <id>     every patch line after this belongs to set <id>
+#   #!desc <text>   one line description of the current set
+#   #!risk <word>   one of low, medium, high
+#   #!note <text>   a longer caveat, repeat the directive for more lines
+#
+#   UEFIPatch --list patches/performance.txt        show the sets
+#   UEFIPatch bios.bin patches/performance.txt \
+#             --set msr-e2-unlock --strict -v -n   try one set, write nothing
+#
+# A plain comment line above a patch line becomes that line's label in the
+# report, so keep the "module | platform" style below.
+#
+# What is in here
+# ---------------
+# Only patterns that come from upstream UEFITool 0.28.0 are listed as live
+# patch lines. They are lock removals: they stop the firmware from closing a
+# register the operating system then can not reach, which is what lets a
+# tuning tool keep turbo, C-state and power limit behaviour under your
+# control instead of the vendor's defaults.
+#
+# Byte patterns for anything else (setup menu unlock, SMI handler removal,
+# microcode choice) are specific to one vendor, one board and often one BIOS
+# version. There are no generic patterns for those, so none are invented
+# here. docs/pattern-cookbook.md explains how to derive them for your own
+# dump, and docs/bios-performance-guide.md explains which of them are worth
+# the risk at all.
+#
+# Read docs/risks-and-recovery.md before flashing anything this produces.
+
+
+#----------------------------------------------------------------------------
+#!set msr-e2-unlock
+#!desc Remove the MSR 0xE2 (PKG_CST_CONFIG_CONTROL) lock bit write
+#!risk medium
+#!note the module stops locking a register, so a mistuned C-state limit set
+#!note afterwards can hang or reboot the machine; the image itself stays bootable
+#----------------------------------------------------------------------------
+# MSR 0xE2 holds the package C-state limit and, in bit 15, a CFG_LOCK bit.
+# Once firmware sets CFG_LOCK the register is read-only until the next reset,
+# so nothing in the OS can change the package C-state limit any more. These
+# patches turn the conditional write of that bit into an unconditional skip.
+
+# PowerMgmtDxe | Haswell
+F7731B4C-58A2-4DF4-8980-5645D39ECE58 10 P:75080FBAE80F89442430:EB080FBAE80F89442430
+
+# PowerMgmtDxe | Haswell-E
+F7731B4C-58A2-4DF4-8980-5645D39ECE58 10 P:0FBA6C24380F:0FBA7424380F
+
+# PowerManagement | Sandy Bridge with ME 8.xx, Ivy Bridge
+8C783970-F02A-4A4D-AF09-8797A51EEC8D 10 P:75080FBAE80F89442430:EB080FBAE80F89442430
+
+# PowerManagement | New SB-E/IB-E
+8C783970-F02A-4A4D-AF09-8797A51EEC8D 10 P:0FBA6C24380F:0FBA7424380F
+
+# CpuPei | Sandy Bridge with ME 7.xx, old SB-E/IB-E
+2BB5AFA9-FF33-417B-8497-CB773C2B93BF 10 P:800018EB050D0080:000018EB050D0000
+
+# PpmInitialize | Broadwell-E
+3FFCAE95-23CF-4967-94F5-16352F68E43B 10 P:0FBA6C24400F:0FBA7424400F
+
+# SiInit | Skylake
+299D6F8B-2EC9-4E40-9EC6-DDAA7EBF5FD9 10 P:75080D00800000:EB080D00800000
+299D6F8B-2EC9-4E40-9EC6-DDAA7EBF5FD9 12 P:75080D00800000:EB080D00800000
+
+# SiInit | Kaby Lake
+299D6F8B-2EC9-4E40-9EC6-DDAA7EBF5FD9 10 P:81E10080000033C1:9090909090909090
+299D6F8B-2EC9-4E40-9EC6-DDAA7EBF5FD9 12 P:81E10080000033C1:9090909090909090
+
+# PpmInitialize | Skylake-X
+3FFCAE95-23CF-4967-94F5-16352F68E43B 10 P:742CB9E2000000:752CB9E2000000
+
+# CpuInitPei | Skylake-X
+01359D99-9446-456D-ADA4-50A711C03ADA 12 P:BE0080000023CE0B:BE0000000023CE0B
+
+
+#----------------------------------------------------------------------------
+#!set msr-e2-1aa-unlock
+#!desc Remove the MSR 0xE2 and MSR 0x1AA locks on server and HEDT chipsets
+#!risk medium
+#!note same exposure as msr-e2-unlock, on platforms that lock both registers together
+#----------------------------------------------------------------------------
+# MSR 0x1AA (MSR_MISC_PWR_MGMT) carries the EIST hardware coordination and
+# lock bits. On these chipsets firmware locks it in the same routine as
+# 0xE2, so both have to be cleared in one place.
+
+# PpmInitialize | 0xE2 & 0x1AA unlock for C422 chipsets and some X299 chipsets
+3FFCAE95-23CF-4967-94F5-16352F68E43B 10 P:4889442430....0FBAE8:4889442430....0FBAE0
+3FFCAE95-23CF-4967-94F5-16352F68E43B 10 P:4889442450....0FBAE8:4889442450....0FBAE0
+
+# PpmInitialize | 0xE2 & 0x1AA unlock for C620 chipsets
+3FFCAE95-23CF-4967-94F5-16352F68E43B 10 P:480BC2BA00200000:480BC2BA00000000
+3FFCAE95-23CF-4967-94F5-16352F68E43B 10 P:480BC2BA00800000:480BC2BA00000000
+
+
+#----------------------------------------------------------------------------
+#!set sgx-launch-control
+#!desc Set IA32_FEATURE_CONTROL.SGX_LC so SGX launch control stays writable
+#!risk low
+#!note affects SGX only, no effect on clocks, power or frame rate
+#----------------------------------------------------------------------------
+# Not a performance patch. It is here because it ships with upstream
+# UEFIPatch and is easy to confuse with the power management set above.
+# Excluded from a plain run by naming it explicitly, or use
+# --exclude sgx-launch-control if you apply every set.
+
+# SiInit | Gemini Lake
+299D6F8B-2EC9-4E40-9EC6-DDAA7EBF5FD9 10 P:B93A0000000F320D00000400:B93A0000000F320D00000600
+
+
+#----------------------------------------------------------------------------
+#!set pointer-protocol-fix
+#!desc Fix a broken EFI_SIMPLE_POINTER_PROTOCOL click condition on Z87 boards
+#!risk low
+#!note setup screen input only, nothing the OS ever runs
+#----------------------------------------------------------------------------
+# Also not a performance patch, and board specific. Kept so that this file
+# covers everything upstream shipped.
+
+# UHCD | ASUS Z87-Pro
+580DD900-385D-11D7-883A-00500473D4EB 10 P:807A3200745C807A4000:807A32007506807A4000

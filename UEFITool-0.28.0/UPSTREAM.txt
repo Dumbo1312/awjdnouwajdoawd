@@ -1,0 +1,31 @@
+Upstream source provenance
+==========================
+
+Project   UEFITool
+Upstream  https://github.com/LongSoft/UEFITool
+Tag       0.28.0
+Commit    d9642c53e7b873fcce858ec2bea577f099b966d5
+Author    vit9696
+
+Upstream release notes for 0.28.0:
+
+  * Added 'Do not rebuild' support for volumes
+  * Added support to parse/reconstruct LZMAF86 sections
+  * Added new EIST lock patches for UEFIPatch
+  * Fixed mishandling trailing newline in UEFIPatch
+
+To reproduce this checkout:
+
+  git clone --depth 1 --branch 0.28.0 https://github.com/LongSoft/UEFITool
+
+Local modifications, all in UEFIPatch except one bounds check in
+ffsengine.cpp:
+
+  UEFIPatch/uefipatch.h         rewritten
+  UEFIPatch/uefipatch.cpp       rewritten
+  UEFIPatch/uefipatch_main.cpp  rewritten
+  ffsengine.cpp                 patchViaOffset() bounds check
+  version.h                     PROGRAM_VERSION -> 0.28.0-perf1
+
+See ../docs/tool-changes.md for what each change is and how to reproduce the
+bugs it fixes. Licence terms are unchanged; see LICENSE.md.
