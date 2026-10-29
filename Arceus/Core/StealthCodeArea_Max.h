@@ -1,0 +1,5 @@
+#pragma once
+#define STEALTH_AUX_FUNCTION
+#define STEALTH_AREA_START
+#define STEALTH_AREA_CHUNK
+#define STEALTH_AREA_END

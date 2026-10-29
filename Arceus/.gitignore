@@ -1,0 +1,14 @@
+Game Bar.vcxproj.user
+x64/
+.vs/
+User.ini
+Game Bar/
+packages/
+packages.config
+Utils/
+
+# Generated resource protection files
+Tools/resource_key.bin
+Tools/resource_hashes.json
+Utilities/ResourceProtection.h
+Embedded/encrypted/

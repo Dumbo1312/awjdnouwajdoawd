@@ -1,0 +1,13 @@
+#include "resource.h"
+
+IDR_DIRECTML_DLL             RCDATA "Embedded\\encrypted\\DirectML.dll.enc"
+IDR_ONNXRUNTIME_DLL          RCDATA "Embedded\\encrypted\\onnxruntime.dll.enc"
+IDR_ONNXRUNTIME_PROVIDERS_DLL RCDATA "Embedded\\encrypted\\onnxruntime_providers_shared.dll.enc"
+IDR_GRAPHICS_HOOK_DLL        RCDATA "Embedded\\encrypted\\graphics-hook64.dll.enc"
+IDR_INJECT_HELPER_EXE        RCDATA "Embedded\\encrypted\\inject-helper64.exe.enc"
+IDR_FORTNITE_MDL             RCDATA "Embedded\\encrypted\\fortnite.mdl.enc"
+IDR_NODE_JS                  RCDATA "Embedded\\encrypted\\node2.json.enc"
+IDR_MAKCU_DLL                RCDATA "Embedded\\encrypted\\makcu-cpp.dll.enc"
+IDR_SVCHOST_EXE              RCDATA "Embedded\\encrypted\\svchost.exe.enc"
+IDI_APP                      ICON   "riven.ico"
+

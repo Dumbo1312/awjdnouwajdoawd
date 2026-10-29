@@ -1,0 +1,262 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <!-- FIXED: Removed reference to the old 1.22.1 version -->
+  <Import Project="packages\Microsoft.ML.OnnxRuntime.DirectML.1.23.0\build\native\Microsoft.ML.OnnxRuntime.DirectML.props" Condition="Exists('packages\Microsoft.ML.OnnxRuntime.DirectML.1.23.0\build\native\Microsoft.ML.OnnxRuntime.DirectML.props')" />
+  <Import Project="packages\Microsoft.AI.DirectML.1.15.4\build\Microsoft.AI.DirectML.props" Condition="'$(Configuration)'=='DirectML' And Exists('packages\Microsoft.AI.DirectML.1.15.4\build\Microsoft.AI.DirectML.props')" />
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="DirectML|x64">
+      <Configuration>DirectML</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>17.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{bf7d405c-5f7a-42d0-8268-0efee1b41773}</ProjectGuid>
+    <RootNamespace>Riven</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='DirectML|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='TensorRT|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='DirectML|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <PlatformToolset>v145</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <Import Project="Options.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="Shared">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='DirectML|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='TensorRT|Win32'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='DirectML|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='DirectML|x64'">
+    <LinkIncremental>true</LinkIncremental>
+    <TargetName>Riven AI</TargetName>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='DirectML|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='TensorRT|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='DirectML|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>DIRECTML;NDEBUG;_CONSOLE;NOMINMAX;_WINSOCK_DEPRECATED_NO_WARNINGS;_WINSOCKAPI_;MAKCU_SHARED;RIVEN_NO_LOG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
+      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
+      <AdditionalIncludeDirectories>KeyAux;KeyAux\lib;KeyAux\lib\libsodium;KeyAux\lib\curl;Input\include;..\Library\hidapi;..\Library\CodeVirtualizer\Include;..\Library\VirtualMouse\include;..\Library\DirectX12\include;..\Library\LicenseClient\include;..\Library\Freetype\include;..\Library\QEngine\include;..\Library\Eigen3;deps;deps\makcu\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalOptions>/openmp /FS %(AdditionalOptions)</AdditionalOptions>
+      <MultiProcessorCompilation>false</MultiProcessorCompilation>
+      <FloatingPointModel>Fast</FloatingPointModel>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <Optimization>MaxSpeed</Optimization>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <GenerateDebugInformation>false</GenerateDebugInformation>
+      <CETCompat>false</CETCompat>
+      <AdditionalLibraryDirectories>KeyAux;KeyAux\lib\curl;KeyAux\lib\libsodium;..\Library\hidapi;..\Library\CodeVirtualizer\Lib;..\Library\VirtualMouse\lib;..\Library\LicenseClient\lib;..\Library\Freetype\win64;..\Library\QEngine\lib;deps\makcu\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>setupapi.lib;library_x64.lib;libcurl.lib;libsodium.lib;zlib.lib;ws2_32.lib;winhttp.lib;iphlpapi.lib;crypt32.lib;bcrypt.lib;makcu-cpp.lib;delayimp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalManifestDependencies>%(AdditionalManifestDependencies)</AdditionalManifestDependencies>
+      <ManifestFile>
+      </ManifestFile>
+      <UACExecutionLevel>RequireAdministrator</UACExecutionLevel>
+      <DelayLoadDLLs>onnxruntime.dll;DirectML.dll;makcu-cpp.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
+      <GenerateMapFile>true</GenerateMapFile>
+      <MapFileName>$(OutDir)RIVEN.map</MapFileName>
+      <MapExports>true</MapExports>
+    </Link>
+    <PreBuildEvent>
+      <Command>powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\SecretMutator.ps1"
+if not exist "$(ProjectDir)Embedded" mkdir "$(ProjectDir)Embedded"
+xcopy /Y /D "$(ProjectDir)OBS\graphics-hook64.dll" "$(ProjectDir)Embedded\"
+xcopy /Y /D "$(ProjectDir)OBS\inject-helper64.exe" "$(ProjectDir)Embedded\"
+xcopy /Y /D "$(ProjectDir)packages\Microsoft.ML.OnnxRuntime.DirectML.1.23.0\runtimes\win-x64\native\onnxruntime.dll" "$(ProjectDir)Embedded\"
+xcopy /Y /D "$(ProjectDir)packages\Microsoft.ML.OnnxRuntime.DirectML.1.23.0\runtimes\win-x64\native\onnxruntime_providers_shared.dll" "$(ProjectDir)Embedded\"
+xcopy /Y /D "$(ProjectDir)packages\Microsoft.AI.DirectML.1.15.4\bin\x64-win\DirectML.dll" "$(ProjectDir)Embedded\"
+if not exist "$(ProjectDir)Embedded\fortnite.mdl" powershell -ExecutionPolicy Bypass -Command "$d=[byte[]]::new(32); [System.IO.File]::WriteAllBytes('$(ProjectDir)Embedded\fortnite.mdl',$d)"
+xcopy /Y /D "$(ProjectDir)deps\makcu\bin\makcu-cpp.dll" "$(ProjectDir)Embedded\"
+REM Encrypt resources for protection
+powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\ResourceEncryptTool.ps1"</Command>
+    </PreBuildEvent>
+    <PostBuildEvent>
+      <Command>REM VMProtect post-link pass — OPT-IN. Run with env var RIVEN_APPLY_VMP=1 when a licensed VMProtect is available.
+if "%RIVEN_APPLY_VMP%"=="1" powershell -ExecutionPolicy Bypass -File "$(ProjectDir)Tools\ApplyVMProtect.ps1" -ProjectDir "$(ProjectDir)" -TargetExe "$(TargetPath)" -OutDir "$(ProjectDir)Protected"</Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="Core\App.cpp" />
+    <ClCompile Include="Core\SvchostDeploy.cpp" />
+    <ClCompile Include="Core\DelayLoadHook.cpp" />
+    <ClCompile Include="Core\AimProtection.cpp" />
+    <ClCompile Include="Core\Game_overlay.cpp" />
+    <ClCompile Include="Core\IOManagement.cpp" />
+    <ClCompile Include="Core\ByteTrack\BYTETracker.cpp" />
+    <ClCompile Include="Core\ByteTrack\STrack.cpp" />
+    <ClCompile Include="Core\ByteTrack\KalmanFilter.cpp" />
+    <ClCompile Include="Core\ByteTrack\Rect.cpp" />
+    <ClCompile Include="Core\ByteTrack\Object.cpp" />
+    <ClCompile Include="Core\ByteTrack\lapjv.cpp" />
+    <ClCompile Include="Core\ViGEmController.cpp" />
+    <ClCompile Include="Core\GHubIO.cpp" />
+    <ClCompile Include="Core\RazerIO.cpp" />
+    <ClCompile Include="Core\MakcuController.cpp" />
+    <ClCompile Include="Core\RPBoxController.cpp" />
+    <ClCompile Include="Core\MakcuIO.cpp" />
+    <ClCompile Include="Core\RPBoxIO.cpp" />
+    <ClCompile Include="Core\Win32IO.cpp" />
+    <ClCompile Include="deps\hid.c" />
+    <ClCompile Include="Input\src\ViGEmClient.cpp" />
+    <ClCompile Include="Core\OnnxRT.cpp" />
+    <ClCompile Include="Core\OBS\game_capture.cpp" />
+    <ClCompile Include="Core\ScreenCapture.cpp" />
+    <ClCompile Include="Core\Target.cpp" />
+    <ClCompile Include="Core\User.cpp" />
+    <ClCompile Include="Core\KeyauxClient.cpp" />
+    <ClCompile Include="Core\ServerSecureClient.cpp" />
+    <ClCompile Include="Core\SecurePayload.cpp" />
+    <ClCompile Include="Games\Fortnite.cpp" />
+    <ClCompile Include="RIVEN.cpp" />
+    <ClCompile Include="Core\RIVENEntry.cpp" />
+    <ClCompile Include="Utilities\Logger.hpp" />
+    <ClCompile Include="Utilities\Utilities.cpp" />
+    <ClCompile Include="Utilities\RuntimeProtection.cpp" />
+    <ClCompile Include="Utilities\HardenedCore.cpp" />
+    <ClCompile Include="Utilities\FakeServer.cpp" />
+    <ClCompile Include="Utilities\LicenseGuard.cpp" />
+    <ClCompile Include="Utilities\ModelEncrypt.cpp" />
+    <ClCompile Include="Core\ResourceExtract.cpp" />
+    <ClCompile Include="Core\WebConfigServer.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="C:\Users\mwa73\Downloads\VirtualizerSDK.h" />
+    <ClInclude Include="Core\InceptionAPI.h" />
+    <ClInclude Include="Core\OnnxRT.h" />
+    <ClInclude Include="Core\StealthCodeArea_Max.h" />
+    <ClInclude Include="Core\Target.h" />
+    <ClInclude Include="Core\App.h" />
+    <ClInclude Include="Core\SvchostDeploy.h" />
+    <ClInclude Include="Core\AimProtection.h" />
+    <ClInclude Include="Core\Game_overlay.h" />
+    <ClInclude Include="Core\IOManagement.h" />
+    <ClInclude Include="Core\ViGEmController.h" />
+    <ClInclude Include="Core\GHubIO.h" />
+    <ClInclude Include="Core\RazerIO.h" />
+    <ClInclude Include="Core\MakcuController.h" />
+    <ClInclude Include="Core\RPBoxController.h" />
+    <ClInclude Include="Core\MakcuIO.h" />
+    <ClInclude Include="Core\RPBoxIO.h" />
+    <ClInclude Include="Core\Win32IO.h" />
+    <ClInclude Include="Core\ScreenCapture.h" />
+    <ClInclude Include="Core\OBS\game_capture.h" />
+    <ClInclude Include="Core\OBS\hook_info.h" />
+    <ClInclude Include="Core\User.h" />
+    <ClInclude Include="Core\WebConfigServer.h" />
+    <ClInclude Include="Core\WebPanelPage.h" />
+    <ClInclude Include="deps\hidapi.h" />
+    <ClInclude Include="Core\VirtualizerSDK.h" />
+    <ClInclude Include="Core\ServerSecureClient.h" />
+    <ClInclude Include="Core\SecurePayload.h" />
+    <ClInclude Include="Core\VirtualizerSDK_CAT_BLACK.h" />
+    <ClInclude Include="Games\Game.h" />
+    <ClInclude Include="Games\VirtualizerSDK.h" />
+    <ClInclude Include="Games\VirtualizerSDK_CAT_BLACK.h" />
+    <ClInclude Include="Utilities\engine\hashtypes\qtype_hash.hpp" />
+    <ClInclude Include="Utilities\engine\polyhashtypes\qtype_enchash.hpp" />
+    <ClInclude Include="Utilities\engine\polytypes\qtype_enc.hpp" />
+    <ClInclude Include="Utilities\engine\qengine.hpp" />
+    <ClInclude Include="Utilities\Games.hpp" />
+    <ClInclude Include="Utilities\StealthArea.hpp" />
+    <ClInclude Include="Utilities\Strings.hpp" />
+    <ClInclude Include="Utilities\Utilities.h" />
+    <ClInclude Include="Utilities\RuntimeProtection.h" />
+    <ClInclude Include="Utilities\HardenedCore.h" />
+    <ClInclude Include="Utilities\FakeServer.h" />
+    <ClInclude Include="Utilities\LicenseGuard.h" />
+    <ClInclude Include="Utilities\ModelEncrypt.h" />
+    <ClInclude Include="Utilities\ResourceDecrypt.h" />
+    <ClInclude Include="Utilities\ResourceProtection.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- FIXED: This file tells NuGet which packages to restore. -->
+    <None Include="packages.config" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="RIVEN.rc" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+    <Import Project="packages\Microsoft.AI.DirectML.1.15.4\build\Microsoft.AI.DirectML.targets" Condition="'$(Configuration)'=='DirectML' And Exists('packages\Microsoft.AI.DirectML.1.15.4\build\Microsoft.AI.DirectML.targets')" />
+    <!-- FIXED: Removed duplicate import line -->
+    <Import Project="packages\Microsoft.ML.OnnxRuntime.DirectML.1.23.0\build\native\Microsoft.ML.OnnxRuntime.DirectML.targets" Condition="Exists('packages\Microsoft.ML.OnnxRuntime.DirectML.1.23.0\build\native\Microsoft.ML.OnnxRuntime.DirectML.targets')" />
+  </ImportGroup>
+  <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
+    <PropertyGroup>
+      <ErrorText>This project references NuGet package(s) that are missing on this computer. Use NuGet Package Restore to download them.  For more information, see http://go.microsoft.com/fwlink/?LinkID=322105. The missing file is {0}.</ErrorText>
+    </PropertyGroup>
+    <!-- FIXED: Removed duplicate error checks -->
+    <Error Condition="!Exists('packages\Microsoft.ML.OnnxRuntime.DirectML.1.23.0\build\native\Microsoft.ML.OnnxRuntime.DirectML.props')" Text="$([System.String]::Format('$(ErrorText)', 'packages\Microsoft.ML.OnnxRuntime.DirectML.1.23.0\build\native\Microsoft.ML.OnnxRuntime.DirectML.props'))" />
+    <Error Condition="!Exists('packages\Microsoft.ML.OnnxRuntime.DirectML.1.23.0\build\native\Microsoft.ML.OnnxRuntime.DirectML.targets')" Text="$([System.String]::Format('$(ErrorText)', 'packages\Microsoft.ML.OnnxRuntime.DirectML.1.23.0\build\native\Microsoft.ML.OnnxRuntime.DirectML.targets'))" />
+    <!-- FIXED: Added checks for the other required package -->
+    <Error Condition="!Exists('packages\Microsoft.AI.DirectML.1.15.4\build\Microsoft.AI.DirectML.props')" Text="$([System.String]::Format('$(ErrorText)', 'packages\Microsoft.AI.DirectML.1.15.4\build\Microsoft.AI.DirectML.props'))" />
+    <Error Condition="!Exists('packages\Microsoft.AI.DirectML.1.15.4\build\Microsoft.AI.DirectML.targets')" Text="$([System.String]::Format('$(ErrorText)', 'packages\Microsoft.AI.DirectML.1.15.4\build\Microsoft.AI.DirectML.targets'))" />
+  </Target>
+</Project>

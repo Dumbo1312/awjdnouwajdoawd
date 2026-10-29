@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <PreprocessorDefinitions>FORTNITE;VERSION=240;LICENSE=131584390961692673;GLOBAL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+  </ItemDefinitionGroup>
+
+  <PropertyGroup Label="UserMacros">
+    <UseInception>false</UseInception>
+  </PropertyGroup>
+
+  <ItemDefinitionGroup Condition="'$(UseInception)'=='true'">
+    <ClCompile>
+      <PreprocessorDefinitions>INCEPTION;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>..\Library\Inception\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <AdditionalLibraryDirectories>..\Library\Inception\lib;..\Library\WinDivert\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+    </Link>
+  </ItemDefinitionGroup>
+
+</Project>

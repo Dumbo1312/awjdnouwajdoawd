@@ -23,3 +23,9 @@ ui_*.h
 *.dump/
 mega_file
 RIven_extracted/
+Arceus/Embedded/encrypted/
+Arceus/Embedded/*.mdl
+Arceus/fort.usr
+Arceus/grant_smoke_test.obj
+Arceus/makcutest.obj
+Arceus/config/
