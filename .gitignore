@@ -21,3 +21,4 @@ ui_*.h
 *.fd
 *.patched
 *.dump/
+mega_file
