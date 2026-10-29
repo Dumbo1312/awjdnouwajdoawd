@@ -17,6 +17,8 @@ SOURCES  += guicheck_main.cpp \
  $$ROOT/uefitool.cpp \
  $$ROOT/searchdialog.cpp \
  $$ROOT/presetdialog.cpp \
+ $$ROOT/debloatdialog.cpp \
+ $$ROOT/firmwarereport.cpp \
  $$ROOT/patchset.cpp \
  $$ROOT/theme.cpp \
  $$ROOT/types.cpp \
@@ -41,6 +43,8 @@ SOURCES  += guicheck_main.cpp \
 HEADERS  += $$ROOT/uefitool.h \
  $$ROOT/searchdialog.h \
  $$ROOT/presetdialog.h \
+ $$ROOT/debloatdialog.h \
+ $$ROOT/firmwarereport.h \
  $$ROOT/patchset.h \
  $$ROOT/theme.h \
  $$ROOT/ffsengine.h \

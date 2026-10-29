@@ -24,9 +24,15 @@ namespace Theme
     // Accent colours, for the few places that need them in code rather than
     // in the stylesheet, such as per item foregrounds in a tree widget.
     QString accentColor();       // yellow, for text on the dark background
+    QString warningColor();      // orange, for findings that need attention
     QString textColor();
     QString dimTextColor();
     QString panelColor();
+
+    // Window translucency, as a percentage. 100 is opaque. Only has a visible
+    // effect where the desktop has a compositor running.
+    int minimumOpacity();
+    int defaultOpacity();
 
     // Reads the stylesheet out of the compiled in resource. Empty if the
     // resource is missing, which is not fatal: the application just looks

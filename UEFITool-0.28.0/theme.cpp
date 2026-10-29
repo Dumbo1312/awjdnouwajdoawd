@@ -26,6 +26,23 @@ QString accentColor()
     return QString("#ffc400");
 }
 
+QString warningColor()
+{
+    return QString("#ff8a3d");
+}
+
+int minimumOpacity()
+{
+    // Below about 70 the text starts fighting with whatever is behind the
+    // window, which stops being a look and starts being unreadable.
+    return 70;
+}
+
+int defaultOpacity()
+{
+    return 100;
+}
+
 QString textColor()
 {
     return QString("#e6e4dc");

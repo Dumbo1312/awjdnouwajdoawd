@@ -1,7 +1,9 @@
 # The UEFITool GUI: theme and presets
 
-Two things were added to the UEFITool window: a yellow on black theme, and a
-Tweaks menu that applies groups of patches to the image you have open.
+Added to the UEFITool window: a yellow on black theme with rounded corners
+and optional translucency, a Tweaks menu that applies groups of patches to
+the image you have open, a Debloat dialog that removes modules it found by
+scanning, and an image analysis report.
 
 All screenshots here are of the built binary running, driven through the
 flow by `tests/screenshot.sh`, not mock-ups.
@@ -18,15 +20,33 @@ The palette is small on purpose:
 
 | Colour | Used for |
 | --- | --- |
-| `#0f0f10` | window background |
-| `#17171a` | panels, trees, text areas |
-| `#1f1f23` | alternating rows, inputs, raised controls |
+| `#0b0b0d` | window background |
+| `#141417` | panels, trees, text areas |
+| `#1c1c21` | alternating rows, inputs, raised controls |
 | `#2a2a1c` | hover |
 | `#3a3a2e` | borders |
 | `#e6e4dc` | body text |
 | `#9a978c` | dimmed text |
 | `#ffc400` | the accent: headings, selection, focus |
+| `#ff8a3d` | warnings and dependency findings |
 | `#121212` | text drawn on top of an accent fill |
+
+Panels, lists, inputs and menus are drawn with `rgba()` fills rather than
+solid colours, so each sits as a translucent layer over what is beneath it.
+Corners are rounded throughout: 10px on group boxes, 8px on lists and text
+areas, 7px on buttons, 6px on inputs and menu rows.
+
+**View -> Window opacity** sets the whole window's translucency, from 100%
+down to 75%. This needs a compositing desktop to show anything: without one
+the setting is harmless and simply does nothing. It applies to the dialogs
+as well as the main window, so they do not end up looking detached from it.
+The floor is 70% because below that text starts fighting with whatever is
+behind the window.
+
+The window keeps its native title bar. Real see-through-the-window
+translucency in Qt needs a frameless window with `WA_TranslucentBackground`,
+which costs the title bar and every window manager behaviour that comes with
+it. Layered `rgba()` plus window opacity gets the look without that trade.
 
 The accent only ever appears on a near black background, and anything drawn
 on an accent fill uses `#121212`, so both directions stay well clear of the
@@ -97,6 +117,22 @@ match.
 **Load preset file...** points the dialog at any file in the preset format,
 so patterns you derive yourself appear here without touching the program.
 
+### Suggestions from the image
+
+The **This image** column comes from scanning what is open:
+
+- **will apply** — the pattern was found; applying will change something
+- **module here, pattern differs** — the module exists but this particular
+  pattern is not in it, which is what a different BIOS version looks like
+- **not in this image** — the module is not there at all
+
+**Suggested** ticks only the first kind. The detail pane breaks the same
+verdict down per module, so you can see which half of a preset matched.
+
+This is as close to "will this work on my BIOS" as anything can honestly get
+without flashing it. [scanning-and-debloat.md](scanning-and-debloat.md)
+covers how the scan works.
+
 ### What is in the preset list
 
 | Group | What is there |
@@ -143,11 +179,29 @@ To add your own, derive the pattern with `tools/msr-lock-scan.py` and
 It shows up in the dialog the next time you open it, under that platform
 heading.
 
+## Debloat
+
+**Tweaks -> Debloat...** (Ctrl+D) removes modules from the open image. The
+list is built by scanning: only things actually present are offered, each
+with a dependency check behind it, and the banner says plainly that none of
+it affects frame rate.
+
+It has its own document, [scanning-and-debloat.md](scanning-and-debloat.md),
+because the interesting part is the analysis rather than the dialog.
+
+## Analyze image
+
+**Tweaks -> Analyze image** reports what the scanner made of the open file:
+platform and firmware vendor with the evidence for each, the regions, the
+module count and the apriori lists. The same report goes to the Messages
+list every time an image is opened, and **Show Details** gives the full
+module inventory.
+
 ## Screenshots
 
 `tests/screenshot.sh` builds UEFITool, starts a virtual X server, runs the
-real binary under it and clicks through the whole preset flow with xdotool,
-writing the four images in this document to `docs/images/`. It needs
+real binary under it and clicks through the debloat and preset flows with
+xdotool, writing the images in this document to `docs/images/`. It needs
 
 ```sh
 apt-get install xvfb openbox xdotool x11-utils imagemagick
@@ -159,12 +213,21 @@ pixel coordinates depend on how the preset names happen to wrap.
 ## Testing
 
 `tests/run_gui_tests.sh` builds `tests/guicheck`, which links the same
-sources as UEFITool with its own `main()`, and runs 53 checks under Qt's
+sources as UEFITool with its own `main()`, and runs 89 checks under Qt's
 offscreen platform plugin — no X server, no real firmware. It covers the
 theme resource and the toggle, the menu layout, that presets stay disabled
 until an image is open, that the catalog groups by platform, that exactly
 the applicable presets are tickable, and that ticking one reports it as
-selected. It also renders both screenshots above.
+selected.
+
+It also covers the scanner against a fixture whose contents are known
+exactly: that the image is recognised as Intel with evidence, that every
+module is inventoried by the name it carries itself, that the DXE apriori
+list is parsed, that the right presets come back applicable and the wrong
+ones do not, that evaluating presets leaves the image byte for byte
+unchanged, and that the debloat candidates come out with the right category,
+the right apriori flag and the right cross reference — including that the
+apriori file itself is never offered for removal.
 
 The last check is the useful one: it runs the same apply sequence the GUI
 performs, writes the result, and diffs it against the image UEFIPatch

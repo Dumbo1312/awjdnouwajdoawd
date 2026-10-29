@@ -16,6 +16,7 @@
 
 #include <QMainWindow>
 #include <QByteArray>
+#include <QActionGroup>
 #include <QClipboard>
 #include <QDragEnterEvent>
 #include <QDropEvent>
@@ -37,6 +38,8 @@
 #include "basetypes.h"
 #include "ffs.h"
 #include "ffsengine.h"
+#include "debloatdialog.h"
+#include "firmwarereport.h"
 #include "patchset.h"
 #include "presetdialog.h"
 #include "searchdialog.h"
@@ -84,7 +87,10 @@ public:
 	void doNotRebuild();
 
     void openPresets();
+    void openDebloat();
+    void analyzeImage();
     void toggleTheme(bool enabled);
+    void changeOpacity();
 
     void remove();
 
@@ -104,8 +110,15 @@ private:
     FfsEngine* ffsEngine;
     SearchDialog* searchDialog;
     PresetDialog* presetDialog;
+    DebloatDialog* debloatDialog;
     QAction* actionPresets;
+    QAction* actionDebloat;
+    QAction* actionAnalyze;
     QAction* actionTheme;
+    QActionGroup* opacityGroup;
+    int windowOpacity;           // percent
+    FirmwareReport lastScan;
+    bool haveScan;
     QClipboard* clipboard;
     QString currentDir;
     QString currentProgramPath;
@@ -115,6 +128,10 @@ private:
     void showMessages();
     void buildExtraMenus();
     void applyPresets(const QStringList & setIds, bool allCopies);
+    void applyDebloat(const QList<QPersistentModelIndex> & modules, const QStringList & labels);
+    void runScan();
+    void applyOpacity();
+    void addReportLines(const QStringList & lines);
 
     void dragEnterEvent(QDragEnterEvent* event);
     void dropEvent(QDropEvent* event);

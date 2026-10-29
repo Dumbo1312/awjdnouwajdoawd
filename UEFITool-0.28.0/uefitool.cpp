@@ -30,6 +30,10 @@ version(tr(PROGRAM_VERSION))
     ui->setupUi(this);
     searchDialog = new SearchDialog(this);
     presetDialog = NULL;
+    debloatDialog = NULL;
+    opacityGroup = NULL;
+    windowOpacity = Theme::defaultOpacity();
+    haveScan = false;
     ffsEngine = NULL;
 
     // Tweaks and View menus are built in code rather than in the .ui file, so
@@ -94,6 +98,7 @@ UEFITool::~UEFITool()
     delete ffsEngine;
     delete searchDialog;
     delete presetDialog;
+    delete debloatDialog;
 }
 
 void UEFITool::setProgramPath(QString path)
@@ -122,6 +127,12 @@ void UEFITool::init()
     ui->actionMessagesCopyAll->setDisabled(true);
     if (actionPresets)
         actionPresets->setDisabled(true);
+    if (actionDebloat)
+        actionDebloat->setDisabled(true);
+    if (actionAnalyze)
+        actionAnalyze->setDisabled(true);
+    haveScan = false;
+    lastScan = FirmwareReport();
 
     // Make new ffsEngine
     if (ffsEngine)
@@ -647,6 +658,14 @@ void UEFITool::openImageFile(QString path)
     // in it simply reports that it matched nothing.
     if (actionPresets)
         actionPresets->setEnabled(true);
+    if (actionDebloat)
+        actionDebloat->setEnabled(true);
+    if (actionAnalyze)
+        actionAnalyze->setEnabled(true);
+
+    // Work out what this image is while it is fresh, so the preset and
+    // debloat dialogs have something to narrow themselves down with.
+    runScan();
 
     // Set current directory
     currentDir = fileInfo.absolutePath();
@@ -785,6 +804,18 @@ void UEFITool::readSettings()
     if (actionTheme)
         actionTheme->setChecked(themeOn);
     Theme::apply(themeOn);
+
+    windowOpacity = settings.value("ui/windowOpacity", Theme::defaultOpacity()).toInt();
+    if (windowOpacity < Theme::minimumOpacity() || windowOpacity > 100)
+        windowOpacity = Theme::defaultOpacity();
+    if (opacityGroup) {
+        const QList<QAction*> actions = opacityGroup->actions();
+        for (int i = 0; i < actions.count(); i++) {
+            if (actions.at(i)->data().toInt() == windowOpacity)
+                actions.at(i)->setChecked(true);
+        }
+    }
+    applyOpacity();
 }
 
 void UEFITool::writeSettings()
@@ -801,6 +832,7 @@ void UEFITool::writeSettings()
     settings.setValue("tree/columnWidth2", ui->structureTreeView->columnWidth(2));
     settings.setValue("tree/columnWidth3", ui->structureTreeView->columnWidth(3));
     settings.setValue("ui/yellowOnBlack", actionTheme ? actionTheme->isChecked() : true);
+    settings.setValue("ui/windowOpacity", windowOpacity);
 }
 
 void UEFITool::buildExtraMenus()
@@ -813,6 +845,19 @@ void UEFITool::buildExtraMenus()
     actionPresets->setDisabled(true);
     connect(actionPresets, SIGNAL(triggered()), this, SLOT(openPresets()));
 
+    actionDebloat = tweaksMenu->addAction(tr("&Debloat..."));
+    actionDebloat->setShortcut(QKeySequence("Ctrl+D"));
+    actionDebloat->setStatusTip(tr("Remove modules this image does not need"));
+    actionDebloat->setDisabled(true);
+    connect(actionDebloat, SIGNAL(triggered()), this, SLOT(openDebloat()));
+
+    tweaksMenu->addSeparator();
+
+    actionAnalyze = tweaksMenu->addAction(tr("&Analyze image"));
+    actionAnalyze->setStatusTip(tr("Report what this image is and what it contains"));
+    actionAnalyze->setDisabled(true);
+    connect(actionAnalyze, SIGNAL(triggered()), this, SLOT(analyzeImage()));
+
     // View
     QMenu* viewMenu = new QMenu(tr("&View"), this);
     actionTheme = viewMenu->addAction(tr("&Yellow on black theme"));
@@ -820,6 +865,19 @@ void UEFITool::buildExtraMenus()
     actionTheme->setChecked(true);
     actionTheme->setStatusTip(tr("Switch between the yellow on black theme and the system style"));
     connect(actionTheme, SIGNAL(toggled(bool)), this, SLOT(toggleTheme(bool)));
+
+    QMenu* opacityMenu = viewMenu->addMenu(tr("Window &opacity"));
+    opacityGroup = new QActionGroup(this);
+    const int steps[] = { 100, 95, 90, 85, 80, 75, 0 };
+    for (int i = 0; steps[i]; i++) {
+        QAction* step = opacityMenu->addAction(tr("%1%").arg(steps[i]));
+        step->setCheckable(true);
+        step->setData(steps[i]);
+        step->setChecked(steps[i] == Theme::defaultOpacity());
+        opacityGroup->addAction(step);
+        connect(step, SIGNAL(triggered()), this, SLOT(changeOpacity()));
+    }
+    opacityMenu->setStatusTip(tr("Make the window translucent, where the desktop composites"));
 
     // Inserted before Help so that Help stays the last menu.
     ui->menuBar->insertMenu(ui->menuHelp->menuAction(), viewMenu);
@@ -847,6 +905,15 @@ void UEFITool::openPresets()
                     QMessageBox::Ok);
             }
         }
+    }
+
+    // Tell the dialog what the scan found, so it can say which presets are
+    // relevant to the image that is actually open.
+    if (haveScan && ffsEngine) {
+        const FirmwareScanner scanner(ffsEngine, ffsEngine->treeModel());
+        const PatchCatalog & catalog = presetDialog->catalog();
+        presetDialog->setApplicability(scanner.evaluatePresets(catalog),
+                                       scanner.evaluateEntries(catalog));
     }
 
     if (presetDialog->exec() != QDialog::Accepted)
@@ -957,6 +1024,195 @@ void UEFITool::applyPresets(const QStringList & setIds, bool allCopies)
     box.setDetailedText(report.join("\n"));
     box.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
     box.setDefaultButton(QMessageBox::Yes);
+
+    if (box.exec() == QMessageBox::Yes)
+        saveImageFile();
+}
+
+void UEFITool::applyOpacity()
+{
+    const qreal value = windowOpacity / 100.0;
+
+    // Dialogs are top level windows of their own, so setting it on the main
+    // window alone would leave them opaque and looking detached.
+    const QWidgetList windows = QApplication::topLevelWidgets();
+    for (int i = 0; i < windows.count(); i++) {
+        if (windows.at(i)->isWindow())
+            windows.at(i)->setWindowOpacity(value);
+    }
+}
+
+void UEFITool::changeOpacity()
+{
+    QAction* action = qobject_cast<QAction*>(sender());
+    if (!action)
+        return;
+
+    const int value = action->data().toInt();
+    if (value < Theme::minimumOpacity() || value > 100)
+        return;
+
+    windowOpacity = value;
+    applyOpacity();
+    ui->statusBar->showMessage(tr("Window opacity %1%").arg(windowOpacity));
+}
+
+void UEFITool::addReportLines(const QStringList & lines)
+{
+    for (int i = 0; i < lines.count(); i++)
+        ui->messageListWidget->addItem(new MessageListItem(lines.at(i)));
+    ui->messageListWidget->scrollToBottom();
+    ui->actionMessagesCopyAll->setEnabled(true);
+}
+
+void UEFITool::runScan()
+{
+    haveScan = false;
+    if (!ffsEngine)
+        return;
+
+    TreeModel* model = ffsEngine->treeModel();
+    if (!model || !model->index(0, 0).isValid())
+        return;
+
+    const FirmwareScanner scanner(ffsEngine, model);
+    lastScan = scanner.scan();
+    haveScan = true;
+
+    QStringList lines;
+    lines.append(tr("--- image scan ---"));
+    lines += lastScan.summaryLines();
+    addReportLines(lines);
+}
+
+void UEFITool::analyzeImage()
+{
+    if (!haveScan)
+        runScan();
+
+    if (!haveScan) {
+        QMessageBox::warning(this, tr("Nothing to analyze"),
+            tr("Open a firmware image first."), QMessageBox::Ok);
+        return;
+    }
+
+    // The full module inventory goes in the detail pane; it is long.
+    QStringList detail;
+    for (int i = 0; i < lastScan.modules.count(); i++) {
+        const ModuleInfo & module = lastScan.modules.at(i);
+        detail.append(tr("%1  %2  %3 bytes  %4")
+                      .arg(module.name.isEmpty() ? tr("(unnamed)") : module.name, -34)
+                      .arg(module.guid)
+                      .arg(module.size, 8)
+                      .arg(module.volume));
+    }
+
+    QMessageBox box(this);
+    box.setWindowTitle(tr("Image analysis"));
+    box.setIcon(QMessageBox::Information);
+    box.setText(lastScan.summaryLines().join("\n"));
+    box.setInformativeText(tr("The same report is in the Messages list. "
+                              "Show Details for the full module inventory."));
+    box.setDetailedText(detail.join("\n"));
+    box.setStandardButtons(QMessageBox::Ok);
+    box.exec();
+}
+
+void UEFITool::openDebloat()
+{
+    if (!ffsEngine || !haveScan) {
+        QMessageBox::warning(this, tr("Nothing to debloat"),
+            tr("Open a firmware image first."), QMessageBox::Ok);
+        return;
+    }
+
+    if (!debloatDialog) {
+        debloatDialog = new DebloatDialog(this);
+        if (!debloatDialog->loadCatalog(DebloatDialog::defaultCatalogPath())) {
+            QMessageBox::warning(this, tr("No debloat catalogue"), debloatDialog->lastError(),
+                QMessageBox::Ok);
+            return;
+        }
+        const QStringList complaints = debloatDialog->catalog().warnings();
+        if (!complaints.isEmpty()) {
+            QMessageBox::warning(this, tr("Debloat catalogue warnings"), complaints.join("\n"),
+                QMessageBox::Ok);
+        }
+    }
+
+    // Rescan every time: an earlier debloat or preset run will have changed
+    // what is in the tree, and a stale candidate list would offer to remove
+    // modules that are already marked for removal.
+    runScan();
+
+    const FirmwareScanner scanner(ffsEngine, ffsEngine->treeModel());
+    debloatDialog->setScan(lastScan, scanner.findCandidates(debloatDialog->catalog(), lastScan));
+    applyOpacity();
+
+    if (debloatDialog->exec() != QDialog::Accepted)
+        return;
+
+    applyDebloat(debloatDialog->selectedModules(), debloatDialog->selectedLabels());
+}
+
+void UEFITool::applyDebloat(const QList<QPersistentModelIndex> & modules,
+                            const QStringList & labels)
+{
+    if (!ffsEngine || modules.isEmpty())
+        return;
+
+    UINT32 removed = 0;
+    QStringList report;
+
+    for (int i = 0; i < modules.count(); i++) {
+        const QModelIndex index = modules.at(i);
+        const QString label = i < labels.count() ? labels.at(i) : tr("module %1").arg(i + 1);
+
+        if (!index.isValid()) {
+            report.append(tr("[ gone  ] %1 is no longer in the tree").arg(label));
+            continue;
+        }
+
+        const UINT8 result = ffsEngine->remove(index);
+        if (result == ERR_SUCCESS) {
+            removed++;
+            report.append(tr("[removed] %1").arg(label));
+        }
+        else {
+            report.append(tr("[ failed] %1: %2").arg(label).arg(errorMessage(result)));
+        }
+    }
+
+    showMessages();
+    QStringList lines;
+    lines.append(tr("--- debloat ---"));
+    lines += report;
+    lines.append(tr("--- %1 of %2 module(s) marked for removal ---")
+                 .arg(removed).arg(modules.count()));
+    addReportLines(lines);
+
+    if (removed == 0) {
+        QMessageBox::warning(this, tr("Nothing removed"),
+            tr("None of the selected modules could be removed. The Messages list says why "
+               "for each one."), QMessageBox::Ok);
+        return;
+    }
+
+    ui->actionSaveImageFile->setEnabled(true);
+    ui->statusBar->showMessage(tr("Debloated: %1 module(s) marked for removal").arg(removed));
+
+    QString text = tr("Debloated.\n\n%1 module(s) marked for removal.").arg(removed);
+    if (removed < (UINT32)modules.count())
+        text += tr("\n%1 could not be removed.").arg(modules.count() - removed);
+    text += tr("\n\nNothing has been written yet. Rebuild the image and save it now?");
+
+    QMessageBox box(this);
+    box.setWindowTitle(tr("Debloated"));
+    box.setIcon(QMessageBox::Question);
+    box.setText(text);
+    box.setDetailedText(report.join("\n"));
+    box.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
+    box.setDefaultButton(QMessageBox::No);
 
     if (box.exec() == QMessageBox::Yes)
         saveImageFile();

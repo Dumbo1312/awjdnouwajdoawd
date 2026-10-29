@@ -97,6 +97,23 @@ xdotool key asterisk
 sleep 1
 shoot "$MAIN" "main-window.png"
 
+echo "Opening the debloat dialog ..."
+xdotool key ctrl+d
+sleep 4
+DEBLOAT=$(xdotool search --name "^Debloat$" | tail -1)
+[ -n "$DEBLOAT" ] || { echo "the debloat dialog never appeared" >&2; exit 1; }
+xdotool windowmove "$DEBLOAT" 55 55
+xdotool windowsize "$DEBLOAT" 1000 720
+sleep 2
+# Walk down to CsmDxe, the fixture's module with an apriori finding, so the
+# dependency panel has something to show. The fixture's order is fixed, so
+# counting rows is deterministic here even though it would not be in general.
+xdotool key Home; sleep 1
+for i in 1 2 3 4 5 6; do xdotool key Down; sleep 1; done
+shoot "$DEBLOAT" "debloat-dialog.png"
+xdotool key Escape
+sleep 2
+
 echo "Opening the preset dialog ..."
 xdotool key ctrl+t
 sleep 3

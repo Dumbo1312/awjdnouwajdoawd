@@ -26,6 +26,8 @@ per line so the calling script can show them.
 #include <QTreeWidgetItem>
 #include <iostream>
 
+#include "debloatdialog.h"
+#include "firmwarereport.h"
 #include "presetdialog.h"
 #include "theme.h"
 #include "uefitool.h"
@@ -95,14 +97,16 @@ int main(int argc, char *argv[])
     a.setApplicationName("UEFIToolGuiCheck");
 
     const QStringList args = a.arguments();
-    if (args.count() != 4) {
-        std::cout << "usage: guicheck <test-image> <presets.txt> <output-directory>" << std::endl;
+    if (args.count() != 5) {
+        std::cout << "usage: guicheck <test-image> <presets.txt> <debloat.txt> "
+                     "<output-directory>" << std::endl;
         return 2;
     }
 
     const QString imagePath = args.at(1);
     const QString presetPath = args.at(2);
-    const QString outDir = args.at(3);
+    const QString debloatPath = args.at(3);
+    const QString outDir = args.at(4);
     QDir().mkpath(outDir);
 
     // ------------------------------------------------------------- theme ---
@@ -292,6 +296,159 @@ int main(int argc, char *argv[])
             else {
                 check(false, "the tweaked image is written out for comparison");
             }
+        }
+    }
+
+    // ------------------------------------------------------ image scan ---
+    // The scanner is what lets both dialogs talk about the image in front of
+    // you rather than about firmware in general, so it gets checked against
+    // a fixture whose contents are known exactly.
+    {
+        QFile input(imagePath);
+        if (!input.open(QFile::ReadOnly)) {
+            check(false, "the test image can be read for scanning");
+        }
+        else {
+            const QByteArray buffer = input.readAll();
+            input.close();
+
+            FfsEngine engine;
+            check(engine.parseImageFile(buffer) == ERR_SUCCESS,
+                  "the engine parses the fixture for scanning");
+
+            const FirmwareScanner scanner(&engine, engine.treeModel());
+            const FirmwareReport report = scanner.scan();
+
+            check(report.platform == FW_PLATFORM_INTEL,
+                  "the fixture is recognised as an Intel image");
+            check(!report.platformEvidence.isEmpty(),
+                  "the platform verdict comes with evidence");
+            check(report.modules.count() >= 12,
+                  "every module in the fixture is inventoried");
+            check(report.namedModuleCount >= 11,
+                  "modules are identified by the name they carry themselves");
+            check(report.volumeCount >= 1, "the volume is counted");
+            check(!report.aprioriGuids.isEmpty(),
+                  "the DXE apriori list is parsed");
+
+            // Preset applicability. The fixture carries the Haswell and
+            // Skylake patterns and nothing else, so the Intel C-state preset
+            // must come back as applicable and the HEDT one must not.
+            PatchCatalog presetCatalog;
+            check(presetCatalog.loadFile(presetPath) == ERR_SUCCESS,
+                  "the scanner can load the preset catalogue");
+            const QMap<QString, UINT8> applies = scanner.evaluatePresets(presetCatalog);
+
+            check(applies.value("intel-cstate-unlock") == FW_MATCH_APPLIES,
+                  "the Intel C-state preset is reported as applicable");
+            check(applies.value("intel-hedt-power-unlock") != FW_MATCH_APPLIES,
+                  "the HEDT preset is not reported as applicable");
+            check(applies.value("pointer-protocol-fix") == FW_MATCH_ABSENT,
+                  "a preset whose module is absent is reported as absent");
+
+            // Evaluating must not change anything: it is a read only pass.
+            QByteArray afterScan;
+            check(engine.reconstructImageFile(afterScan) == ERR_SUCCESS,
+                  "the image still reconstructs after evaluation");
+            check(afterScan == buffer,
+                  "evaluating presets leaves the image untouched");
+
+            // Debloat candidates.
+            DebloatCatalog debloat;
+            const UINT8 loadResult = debloat.loadFile(debloatPath);
+            check(loadResult == ERR_SUCCESS, "the debloat catalogue loads");
+            if (loadResult != ERR_SUCCESS)
+                std::cout << "        " << debloat.error().toLocal8Bit().constData() << std::endl;
+            check(debloat.categories().count() >= 10,
+                  "the debloat catalogue has its categories");
+            check(debloat.entries().count() >= 90,
+                  "the debloat catalogue has its entries");
+
+            const QVector<DebloatCandidate> candidates =
+                    scanner.findCandidates(debloat, report);
+            check(candidates.count() >= 6,
+                  "the fixture's removable modules are found");
+
+            bool foundCsm = false;
+            bool foundLogo = false;
+            bool foundPxe = false;
+            for (int i = 0; i < candidates.count(); i++) {
+                const DebloatCandidate & candidate = candidates.at(i);
+                if (candidate.module.name == "CsmDxe") {
+                    foundCsm = true;
+                    check(candidate.inApriori,
+                          "a module in the apriori list is flagged as such");
+                }
+                else if (candidate.module.name == "LogoDxe") {
+                    foundLogo = true;
+                    check(candidate.referencedBy.contains("BootManagerDxe"),
+                          "a module referenced by GUID names the module referencing it");
+                    check(candidate.looksRisky(),
+                          "a referenced module counts as risky");
+                }
+                else if (candidate.module.name == "UefiPxeBcDxe") {
+                    foundPxe = true;
+                    check(candidate.categoryId == "network-boot",
+                          "a candidate lands in the right category");
+                    check(!candidate.looksRisky(),
+                          "a module nothing points at is not flagged");
+                }
+            }
+            check(foundCsm, "CsmDxe is offered for removal");
+            check(foundLogo, "LogoDxe is offered for removal");
+            check(foundPxe, "UefiPxeBcDxe is offered for removal");
+
+            // The apriori file itself must never be offered for removal.
+            bool offeredApriori = false;
+            for (int i = 0; i < candidates.count(); i++) {
+                if (candidates.at(i).module.name.contains("apriori", Qt::CaseInsensitive))
+                    offeredApriori = true;
+            }
+            check(!offeredApriori, "the apriori file itself is not offered for removal");
+        }
+    }
+
+    // ------------------------------------------------- the debloat dialog ---
+    {
+        DebloatDialog debloatUi;
+        const bool loaded = debloatUi.loadCatalog(debloatPath);
+        check(loaded, "the debloat dialog loads its catalogue");
+
+        QFile input(imagePath);
+        if (loaded && input.open(QFile::ReadOnly)) {
+            const QByteArray buffer = input.readAll();
+            input.close();
+
+            FfsEngine engine;
+            engine.parseImageFile(buffer);
+            const FirmwareScanner scanner(&engine, engine.treeModel());
+            const FirmwareReport report = scanner.scan();
+            debloatUi.setScan(report, scanner.findCandidates(debloatUi.catalog(), report));
+
+            check(debloatUi.selectedModules().isEmpty(),
+                  "the debloat dialog starts with nothing selected");
+
+            QTreeWidget* debloatTree = debloatUi.findChild<QTreeWidget*>();
+            check(debloatTree != NULL, "the debloat dialog has a tree");
+            if (debloatTree) {
+                check(debloatTree->topLevelItemCount() >= 3,
+                      "only categories with something found are shown");
+
+                int tickable = 0;
+                for (int g = 0; g < debloatTree->topLevelItemCount(); g++) {
+                    QTreeWidgetItem* group = debloatTree->topLevelItem(g);
+                    check(!(group->flags() & Qt::ItemIsUserCheckable),
+                          "a category heading is not tickable on its own");
+                    tickable += group->childCount();
+                }
+                check(tickable >= 6, "every candidate has a row");
+            }
+
+            debloatUi.resize(1000, 720);
+            debloatUi.show();
+            check(saveShot(&debloatUi, outDir + "/offscreen-debloat-dialog.png"),
+                  "the debloat dialog renders to a PNG");
+            debloatUi.hide();
         }
     }
 

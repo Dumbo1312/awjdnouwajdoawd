@@ -31,6 +31,8 @@ Files added:
 | --- | --- |
 | `patchset.h`, `patchset.cpp` | patch file parsing and applying, shared by the GUI and UEFIPatch |
 | `presetdialog.h`, `presetdialog.cpp` | the preset list |
+| `firmwarereport.h`, `firmwarereport.cpp` | image scanning, platform and vendor detection, the debloat catalogue, the dependency analysis |
+| `debloatdialog.h`, `debloatdialog.cpp` | the debloat list |
 | `theme.h`, `theme.cpp`, `theme/dark-yellow.qss`, `uefitool.qrc` | the yellow on black theme |
 
 `uefitool.ui` is **not** modified: the Tweaks and View menus are built in
@@ -241,7 +243,14 @@ Covered at length in [gui-guide.md](gui-guide.md); in summary:
 
 - **A yellow on black theme**, in one stylesheet compiled in as a Qt
   resource, with a **View -> Yellow on black theme** toggle that takes effect
-  without a restart and is remembered between sessions. The accent is only
+  without a restart and is remembered between sessions. Panels, lists, inputs
+  and menus use `rgba()` fills so they layer over what is beneath them, and
+  corners are rounded throughout.
+- **View -> Window opacity**, 100% down to 75%, applied to the dialogs as
+  well as the main window. It needs a compositing desktop to show anything.
+  The window keeps its native title bar: real translucency in Qt needs a
+  frameless window with `WA_TranslucentBackground`, which costs the title bar
+  and the window manager behaviour that goes with it. The accent is only
   ever used on a near black background and anything on an accent fill is
   drawn in `#121212`, so contrast stays above 4.5:1 both ways. A ticked
   checkbox on a selected row inverts to a dark square, because an accent
@@ -261,10 +270,61 @@ Covered at length in [gui-guide.md](gui-guide.md); in summary:
   result box, because a message box's detail pane is a small fixed-size
   area and the report is the thing you want to read and keep.
 
+- The **This image** column, filled from a scan of the open file: *will
+  apply*, *module here, pattern differs*, or *not in this image*. The
+  **Suggested** button ticks only the first kind. The matching is read only
+  and a test pins that evaluating a catalogue leaves the image byte for byte
+  unchanged.
+
 Entries with nothing to apply (the AMD and Graphics groups) are shown as
 notes, not as tickable presets. There are no upstream byte patterns for
 those, and none were invented, so the dialog explains the route that does
 work instead of offering a button that would do nothing.
+
+### Scanning
+
+`firmwarereport.cpp` walks a parsed image and works out what it is:
+
+- **Platform**, Intel or AMD, from the region layout, from module names that
+  only belong to one vendor's platform code, and from long strings in module
+  bodies such as `AGESA!` or `$IBIOSI$`. Evidence for both is reported as
+  ambiguous rather than silently resolved, and the evidence is listed rather
+  than asserted.
+- **Firmware vendor**, from copyright strings with module name prefixes as a
+  fallback.
+- **Inventory**: every module with its GUID, the name it carries in its own
+  user interface section, its size and its volume.
+- **Apriori lists**, parsed out of the PEI and DXE apriori files.
+
+It runs when an image is opened, feeds both dialogs, and is reported to the
+Messages list and under **Tweaks -> Analyze image**.
+
+### Debloat
+
+`knowledge/debloat.txt` is a catalogue of 108 removable modules in 12
+categories, each with a risk, a note on what removing it actually gains, and
+the conditions under which it is safe at all. Entries match on a module's
+own name by default, because a GUID list is a list of guesses that vary
+between vendors while a user interface section is what the image itself says
+the module is.
+
+Only categories with something found in the open image are shown. Before
+anything can be removed, each candidate is checked three ways:
+
+- **Apriori membership.** A module the dispatcher is explicitly told to run
+  at a given point. A hit forces the row to high risk regardless of category.
+- **GUID cross reference.** Every other module's body is searched for this
+  module's raw 16 byte GUID, and the modules that carry it are named.
+- **Last of its file type**, which catches removing the only DXE core.
+
+The dialog states plainly what this cannot do: a dependency expression
+records protocol GUIDs rather than file GUIDs, so a clean result means
+nothing was found against a module, not that removing it is safe. The check
+is sound in one direction only.
+
+The banner across the top says that none of this affects frame rate, because
+that is the most common reason people reach for a debloat feature and it is
+not true.
 
 ### Shared parsing
 
@@ -319,7 +379,7 @@ ok    truncated patch spec is rejected, not a crash
 ### GUI
 
 `tests/run_gui_tests.sh` builds `tests/guicheck`, which links the same
-sources as UEFITool but with its own `main()`, and runs 53 checks under Qt's
+sources as UEFITool but with its own `main()`, and runs 89 checks under Qt's
 offscreen platform plugin. No X server and no real firmware are needed. It
 covers the theme resource and toggle, the menu layout (including that Help
 stays last), presets being disabled until an image is open, platform
@@ -328,10 +388,15 @@ screenshots used in the documentation, and finishes by running the same
 apply sequence the GUI performs and diffing the result against the image
 UEFIPatch produces from the same preset.
 
+The fixture in `tests/make_test_image.py` carries named modules, a DXE
+apriori list and a module that references another by GUID, so the scanner
+and the dependency check are exercised against contents that are known
+exactly rather than against whatever a real dump happens to contain.
+
 ```
 $ tests/run_gui_tests.sh
 ...
-53 passed, 0 failed
+89 passed, 0 failed
 
 Cross-checking the GUI apply path against UEFIPatch
 ok    the GUI and UEFIPatch produce a byte-identical image
@@ -348,7 +413,15 @@ can not be confused.
 ## Not done
 
 - `UEFIReplace` is untouched, including its own copy of the GUID handling.
-- The preset dialog cannot edit or create presets, only load a file.
+- The preset dialog cannot edit or create presets, only load a file. The
+  debloat dialog cannot edit its catalogue either, though both files are
+  plain text and are read at startup.
+- No byte patterns were added. The scanner makes it clear which of the
+  existing ones apply to a given image, which is the honest substitute for
+  testing them against hardware this project has no access to.
+- Vendor detection has no entry for the OEM behind a board, only for the
+  firmware codebase (AMI, Insyde, Phoenix). Board identification lives in
+  SMBIOS tables that are populated at runtime, not in the image.
 - The `patchViaPattern()` matcher still builds a hex string of the whole
   section body and runs a `QRegExp` over it, which is slow on large sections.
   It is correct, so it was left alone.

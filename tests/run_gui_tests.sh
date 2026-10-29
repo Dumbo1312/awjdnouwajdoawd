@@ -21,6 +21,7 @@ SHOTS="${1:-$WORK/shots}"
 mkdir -p "$SHOTS"
 
 PRESETS="$REPO_ROOT/patches/presets.txt"
+DEBLOAT="$REPO_ROOT/knowledge/debloat.txt"
 
 QMAKE=""
 for candidate in qmake /usr/lib/qt5/bin/qmake qmake-qt5 qmake6; do
@@ -51,7 +52,7 @@ python3 "$REPO_ROOT/tests/make_test_image.py" "$IMAGE" > /dev/null
 echo
 # The offscreen plugin warns about propagateSizeHints() and XDG_RUNTIME_DIR on
 # every window; neither matters here, so they are filtered out of the report.
-QT_QPA_PLATFORM=offscreen "$WORK/gui/guicheck" "$IMAGE" "$PRESETS" "$SHOTS" 2>&1 \
+QT_QPA_PLATFORM=offscreen "$WORK/gui/guicheck" "$IMAGE" "$PRESETS" "$DEBLOAT" "$SHOTS" 2>&1 \
     | grep -vE '^parseSection|propagateSizeHints|XDG_RUNTIME_DIR'
 GUI_RESULT=${PIPESTATUS[0]}
 

@@ -32,14 +32,15 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 
 // Column layout of the preset tree
 #define COLUMN_NAME    0
-#define COLUMN_RISK    1
-#define COLUMN_PATCHES 2
+#define COLUMN_MATCH   1
+#define COLUMN_RISK    2
+#define COLUMN_PATCHES 3
 
 // Role holding the set id on a child item
 #define ROLE_SET_ID (Qt::UserRole + 1)
 
 PresetDialog::PresetDialog(QWidget *parent) :
-    QDialog(parent)
+    QDialog(parent), haveApplicability(false)
 {
     setWindowTitle(tr("Performance presets"));
     resize(760, 560);
@@ -59,9 +60,9 @@ PresetDialog::PresetDialog(QWidget *parent) :
     sourceLabel->setWordWrap(false);
 
     tree = new QTreeWidget(this);
-    tree->setColumnCount(3);
+    tree->setColumnCount(4);
     QStringList headers;
-    headers << tr("Preset") << tr("Risk") << tr("Patch lines");
+    headers << tr("Preset") << tr("This image") << tr("Risk") << tr("Patch lines");
     tree->setHeaderLabels(headers);
     tree->setRootIsDecorated(true);
     tree->setUniformRowHeights(true);
@@ -71,10 +72,12 @@ PresetDialog::PresetDialog(QWidget *parent) :
     // is left rather than forcing the risk and count columns off the edge.
 #if QT_VERSION >= 0x050000
     tree->header()->setSectionResizeMode(COLUMN_NAME, QHeaderView::Stretch);
+    tree->header()->setSectionResizeMode(COLUMN_MATCH, QHeaderView::ResizeToContents);
     tree->header()->setSectionResizeMode(COLUMN_RISK, QHeaderView::ResizeToContents);
     tree->header()->setSectionResizeMode(COLUMN_PATCHES, QHeaderView::ResizeToContents);
 #else
     tree->header()->setResizeMode(COLUMN_NAME, QHeaderView::Stretch);
+    tree->header()->setResizeMode(COLUMN_MATCH, QHeaderView::ResizeToContents);
     tree->header()->setResizeMode(COLUMN_RISK, QHeaderView::ResizeToContents);
     tree->header()->setResizeMode(COLUMN_PATCHES, QHeaderView::ResizeToContents);
 #endif
@@ -93,6 +96,10 @@ PresetDialog::PresetDialog(QWidget *parent) :
     QPushButton* loadButton = new QPushButton(tr("Load preset file..."), this);
     QPushButton* allButton = new QPushButton(tr("All"), this);
     QPushButton* noneButton = new QPushButton(tr("None"), this);
+    suggestedButton = new QPushButton(tr("Suggested"), this);
+    suggestedButton->setToolTip(tr("Tick only the presets whose patterns actually match the "
+                                   "image that is open."));
+    suggestedButton->setEnabled(false);
     applyButton = new QPushButton(tr("Apply tweaks"), this);
     applyButton->setDefault(true);
     QPushButton* cancelButton = new QPushButton(tr("Cancel"), this);
@@ -101,6 +108,7 @@ PresetDialog::PresetDialog(QWidget *parent) :
     buttonLayout->addWidget(loadButton);
     buttonLayout->addWidget(allButton);
     buttonLayout->addWidget(noneButton);
+    buttonLayout->addWidget(suggestedButton);
     buttonLayout->addStretch(1);
     buttonLayout->addWidget(applyButton);
     buttonLayout->addWidget(cancelButton);
@@ -117,6 +125,7 @@ PresetDialog::PresetDialog(QWidget *parent) :
     connect(loadButton, SIGNAL(clicked()), this, SLOT(browseForCatalog()));
     connect(allButton, SIGNAL(clicked()), this, SLOT(selectAll()));
     connect(noneButton, SIGNAL(clicked()), this, SLOT(selectNone()));
+    connect(suggestedButton, SIGNAL(clicked()), this, SLOT(selectSuggested()));
     connect(applyButton, SIGNAL(clicked()), this, SLOT(accept()));
     connect(cancelButton, SIGNAL(clicked()), this, SLOT(reject()));
     connect(tree, SIGNAL(itemChanged(QTreeWidgetItem*, int)),
@@ -214,11 +223,32 @@ void PresetDialog::populate()
                 item->setText(COLUMN_RISK, set.risk.isEmpty() ? tr("-") : set.risk);
                 item->setText(COLUMN_PATCHES, QString::number(set.entries.count()));
                 applicableSets++;
+
+                if (haveApplicability) {
+                    const UINT8 outcome = setApplies.value(set.id, FW_MATCH_ABSENT);
+                    if (outcome == FW_MATCH_APPLIES) {
+                        item->setText(COLUMN_MATCH, tr("will apply"));
+                        item->setForeground(COLUMN_MATCH, QColor(Theme::accentColor()));
+                    }
+                    else if (outcome == FW_MATCH_PRESENT) {
+                        item->setText(COLUMN_MATCH, tr("module here, pattern differs"));
+                        item->setForeground(COLUMN_MATCH, QColor(Theme::warningColor()));
+                    }
+                    else {
+                        item->setText(COLUMN_MATCH, tr("not in this image"));
+                        item->setForeground(COLUMN_MATCH, QColor(Theme::dimTextColor()));
+                    }
+                }
+                else {
+                    item->setText(COLUMN_MATCH, tr("not scanned"));
+                    item->setForeground(COLUMN_MATCH, QColor(Theme::dimTextColor()));
+                }
             }
             else {
                 // Nothing to click: the set exists to explain why there is no
                 // patch for this platform, and what to do instead.
                 item->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
+                item->setText(COLUMN_MATCH, tr("-"));
                 item->setText(COLUMN_RISK, tr("note"));
                 item->setText(COLUMN_PATCHES, tr("-"));
                 item->setForeground(COLUMN_NAME, QColor(Theme::dimTextColor()));
@@ -238,11 +268,21 @@ void PresetDialog::populate()
                          .arg(QFileInfo(loadedPath).fileName()).arg(applicableSets));
     sourceLabel->setToolTip(loadedPath);
 
-    detail->setHtml(tr("<p>Tick one or more presets, then <b>Apply tweaks</b>. Each preset is a "
+    QString intro = tr("<p>Tick one or more presets, then <b>Apply tweaks</b>. Each preset is a "
                        "group of byte patterns; a pattern is applied only where it actually "
                        "matches the open image, and you get a report of what matched.</p>"
                        "<p>Entries marked <i>note</i> have nothing to apply. Select one to read "
-                       "why.</p>"));
+                       "why.</p>");
+    if (haveApplicability) {
+        intro += tr("<p>The <b>This image</b> column comes from scanning what is open: "
+                    "<span style=\"color:%1\">will apply</span> means the pattern was found, "
+                    "<span style=\"color:%2\">module here, pattern differs</span> means the "
+                    "module exists but this particular pattern is not in it, which is what a "
+                    "different BIOS version usually looks like. <b>Suggested</b> ticks only "
+                    "the first kind.</p>")
+                .arg(Theme::accentColor()).arg(Theme::warningColor());
+    }
+    detail->setHtml(intro);
 
     updateApplyButton();
 }
@@ -263,6 +303,45 @@ void PresetDialog::browseForCatalog()
     const QStringList complaints = presets.warnings();
     if (!complaints.isEmpty())
         detail->setHtml(tr("<p><b>Warnings</b></p><p>%1</p>").arg(complaints.join("<br>")));
+}
+
+void PresetDialog::setApplicability(const QMap<QString, UINT8> & sets,
+                                    const QMap<int, UINT8> & lines)
+{
+    setApplies = sets;
+    lineApplies = lines;
+    haveApplicability = true;
+
+    bool anySuggestion = false;
+    for (QMap<QString, UINT8>::const_iterator it = setApplies.constBegin();
+         it != setApplies.constEnd(); ++it) {
+        if (it.value() == FW_MATCH_APPLIES) {
+            anySuggestion = true;
+            break;
+        }
+    }
+    suggestedButton->setEnabled(anySuggestion);
+
+    if (!loadedPath.isEmpty())
+        populate();
+}
+
+void PresetDialog::selectSuggested()
+{
+    tree->blockSignals(true);
+    for (int g = 0; g < tree->topLevelItemCount(); g++) {
+        QTreeWidgetItem* group = tree->topLevelItem(g);
+        for (int c = 0; c < group->childCount(); c++) {
+            QTreeWidgetItem* item = group->child(c);
+            if (!(item->flags() & Qt::ItemIsUserCheckable))
+                continue;
+            const QString id = item->data(COLUMN_NAME, ROLE_SET_ID).toString();
+            const bool applies = setApplies.value(id, FW_MATCH_ABSENT) == FW_MATCH_APPLIES;
+            item->setCheckState(COLUMN_NAME, applies ? Qt::Checked : Qt::Unchecked);
+        }
+    }
+    tree->blockSignals(false);
+    updateApplyButton();
 }
 
 void PresetDialog::selectAll()
@@ -344,12 +423,46 @@ void PresetDialog::showDetail(const PatchSet & set)
         const QVector<PatchEntry> & entries = presets.entries();
         QStringList seen;
         for (int i = 0; i < set.entries.count(); i++) {
-            const PatchEntry & entry = entries.at(set.entries.at(i));
+            const int entryIndex = set.entries.at(i);
+            const PatchEntry & entry = entries.at(entryIndex);
             const QString line = entry.label.isEmpty() ? entry.guidText.toUpper() : entry.label;
             if (seen.contains(line))
                 continue;
             seen.append(line);
-            html += tr("<li>%1</li>").arg(line);
+
+            if (!haveApplicability) {
+                html += tr("<li>%1</li>").arg(line);
+                continue;
+            }
+
+            // The outcome shown is the best any line with this label reached,
+            // since one comment usually heads several lines for one platform.
+            UINT8 outcome = FW_MATCH_ABSENT;
+            for (int j = 0; j < set.entries.count(); j++) {
+                const PatchEntry & other = entries.at(set.entries.at(j));
+                const QString otherLine =
+                        other.label.isEmpty() ? other.guidText.toUpper() : other.label;
+                if (otherLine != line)
+                    continue;
+                const UINT8 value = lineApplies.value(set.entries.at(j), FW_MATCH_ABSENT);
+                if (value > outcome)
+                    outcome = value;
+            }
+
+            if (outcome == FW_MATCH_APPLIES) {
+                html += tr("<li>%1 &mdash; <span style=\"color:%2\">will apply</span></li>")
+                        .arg(line).arg(Theme::accentColor());
+            }
+            else if (outcome == FW_MATCH_PRESENT) {
+                html += tr("<li>%1 &mdash; <span style=\"color:%2\">module is here, the "
+                           "pattern does not match</span></li>")
+                        .arg(line).arg(Theme::warningColor());
+            }
+            else {
+                html += tr("<li><span style=\"color:%2\">%1 &mdash; module not in this "
+                           "image</span></li>")
+                        .arg(line).arg(Theme::dimTextColor());
+            }
         }
         html += tr("</ul>");
     }

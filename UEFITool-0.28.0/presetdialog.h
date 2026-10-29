@@ -15,10 +15,12 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 #define __PRESETDIALOG_H__
 
 #include <QDialog>
+#include <QMap>
 #include <QString>
 #include <QStringList>
 
 #include "basetypes.h"
+#include "firmwarereport.h"
 #include "patchset.h"
 
 class QCheckBox;
@@ -52,6 +54,11 @@ public:
     // that does the applying needs the catalog mutable.
     PatchCatalog & catalog() { return presets; }
 
+    // What a scan of the open image says each set and each line would do.
+    // Without this the dialog still works, it just cannot say which presets
+    // are relevant to the image in front of you.
+    void setApplicability(const QMap<QString, UINT8> & sets, const QMap<int, UINT8> & lines);
+
     // Ids of the sets the user ticked, in file order.
     QStringList selectedSets() const;
     // Whether to patch every matching section rather than the first one.
@@ -61,6 +68,7 @@ private slots:
     void browseForCatalog();
     void selectAll();
     void selectNone();
+    void selectSuggested();
     void itemChanged(QTreeWidgetItem* item, int column);
     void updateDetail();
 
@@ -70,6 +78,9 @@ private:
     void showDetail(const PatchSet & set);
 
     PatchCatalog presets;
+    QMap<QString, UINT8> setApplies;
+    QMap<int, UINT8> lineApplies;
+    bool haveApplicability;
     QString loadedPath;
     QString errorText;
 
@@ -78,6 +89,7 @@ private:
     QTreeWidget* tree;
     QTextBrowser* detail;
     QCheckBox* allCopiesBox;
+    QPushButton* suggestedButton;
     QPushButton* applyButton;
 };
 

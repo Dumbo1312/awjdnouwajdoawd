@@ -10,15 +10,24 @@ Base commit: `d9642c53e7b873fcce858ec2bea577f099b966d5` (tag `0.28.0`).
 
 ![The preset dialog](docs/images/preset-dialog.png)
 
-![After applying a preset](docs/images/main-window-tweaked.png)
+![The debloat dialog](docs/images/debloat-dialog.png)
 
 ## Kratko (hrvatski)
 
-- **GUI**: nova žuto-crna tema (View -> Yellow on black theme, pamti se) i
-  **Tweaks -> Performance presets...** (Ctrl+T). Odabereš presete, stisneš
-  *Apply tweaks*, program patcha otvoreni BIOS svugdje gdje pattern paše i
-  javi *"Tweaked. N patch line(s) applied... Rebuild the image and save it
-  now?"* Detalji: [`docs/gui-guide.md`](docs/gui-guide.md).
+- **GUI**: žuto-crna tema sa zaobljenim kutovima i prozirnošću
+  (View -> Window opacity, 100-75%), **Tweaks -> Performance presets...**
+  (Ctrl+T) i **Tweaks -> Debloat...** (Ctrl+D).
+  Detalji: [`docs/gui-guide.md`](docs/gui-guide.md).
+- **Scan**: kad otvoriš sliku, program ju pregleda i sam zaključi je li
+  **Intel ili AMD** (i koji firmware: AMI/Insyde/Phoenix), pa ti na osnovu
+  toga predloži. Preseti dobiju stupac *This image*: `will apply` /
+  `module here, pattern differs` / `not in this image`, a gumb **Suggested**
+  označi samo ono što stvarno paše tvojoj slici.
+- **Debloat** nudi samo module koje je **našao u tvojoj slici**, grupirane po
+  kategorijama, i za svaki prije brisanja provjeri ovisnosti (apriori lista +
+  tko nosi njegov GUID). ⚠️ Debloat **ne daje FPS** — skraćuje POST i smanjuje
+  količinu koda prije OS-a. To piše i u samom dijalogu.
+  Detalji: [`docs/scanning-and-debloat.md`](docs/scanning-and-debloat.md).
 - Preseti su grupirani po platformi: **Intel** ima dva stvarna preseta
   (otključavanje MSR 0xE2 i 0xE2+0x1AA), **AMD** i **Graphics** nemaju što
   primijeniti i dijalog to pošteno kaže umjesto da nudi gumb koji ne radi
@@ -59,16 +68,25 @@ qmake uefipatch.pro && make         # the command line patcher
 
 ## Using the GUI
 
-Open an image, then **Tweaks -> Performance presets...** (Ctrl+T). Tick the
-presets you want and press **Apply tweaks**; the patterns are applied
-wherever they match the open image and you get a per-line report and an
-offer to rebuild and save. If nothing matched, it says so instead of
-pretending the image changed.
+Opening an image scans it: platform (Intel or AMD), firmware vendor, regions,
+module inventory and apriori lists, all reported to the Messages list and
+again under **Tweaks -> Analyze image**.
 
-**View -> Yellow on black theme** toggles the theme without a restart.
+**Tweaks -> Performance presets...** (Ctrl+T) applies groups of patches. The
+**This image** column says what each preset would do to the file you have
+open, and **Suggested** ticks only the ones whose patterns actually match.
+Applying gives a per-line report and an offer to rebuild and save; when
+nothing matched it says so instead of pretending the image changed.
 
-[`docs/gui-guide.md`](docs/gui-guide.md) covers both, including how to add
-your own presets.
+**Tweaks -> Debloat...** (Ctrl+D) removes modules. Only modules found in your
+image are offered, and each one is checked against the apriori lists and
+cross referenced against every other module's body before you can tick it.
+It does not improve frame rate and says so.
+
+**View** holds the theme toggle and the window opacity setting.
+
+[`docs/gui-guide.md`](docs/gui-guide.md) and
+[`docs/scanning-and-debloat.md`](docs/scanning-and-debloat.md) cover both.
 
 ## Using the command line tool
 
@@ -109,12 +127,17 @@ every hit before patching.
 UEFITool-0.28.0/     upstream source, with the GUI and UEFIPatch changes
   theme/             the yellow on black stylesheet
   presetdialog.*     the preset list
+  debloatdialog.*    the debloat list
+  firmwarereport.*   image scanning, platform detection, dependency analysis
   patchset.*         patch file parsing and applying, shared by GUI and CLI
 patches/
   presets.txt        the preset catalog the GUI loads, grouped by platform
   performance.txt    the same patterns as a plain UEFIPatch database
+knowledge/
+  debloat.txt        what the Debloat dialog knows how to find and remove
 docs/
-  gui-guide.md                the theme and the preset dialog
+  gui-guide.md                the theme, the preset dialog, debloat, analyze
+  scanning-and-debloat.md     how the scan and the dependency check work
   bios-performance-guide.md   which firmware changes affect frame rate
   pattern-cookbook.md         deriving UEFIPatch patterns for your own board
   risks-and-recovery.md       Boot Guard, protected regions, getting back
@@ -123,7 +146,7 @@ tools/
   msr-lock-scan.py   find candidate MSR lock sites in an extracted module
 tests/
   run_tests.sh       37 command line regression cases
-  run_gui_tests.sh   53 GUI checks plus a GUI/CLI byte-for-byte cross-check
+  run_gui_tests.sh   89 GUI checks plus a GUI/CLI byte-for-byte cross-check
   screenshot.sh      drives the real binary under Xvfb for docs/images
   guicheck/          the headless GUI test program
   make_test_image.py builds the synthetic firmware volume they run against
@@ -165,16 +188,19 @@ that.
 ```sh
 tests/run_tests.sh                      # 37 command line cases
 tests/run_tests.sh /path/to/UEFIPatch   # or test an existing binary
-tests/run_gui_tests.sh                  # 53 GUI cases, no X server needed
+tests/run_gui_tests.sh                  # 89 GUI cases, no X server needed
 tests/screenshot.sh                     # regenerate docs/images from the real binary
 ```
 
 Both run against a synthetic FFS2 volume built by `tests/make_test_image.py`
 — real headers and checksums, four modules, one a deliberate duplicate — so
-nothing needs anyone's real firmware. The GUI tests run under Qt's offscreen
-platform plugin, render the screenshots in this README, and finish by
-checking that applying a preset through the GUI's code path produces a
-byte-identical image to the one UEFIPatch produces from the same preset.
+nothing needs anyone's real firmware. The fixture carries named modules, a
+DXE apriori list and a module that references another by GUID, so the
+scanner and the dependency check are exercised against contents that are
+known exactly. The GUI tests run under Qt's offscreen platform plugin and
+finish by checking that applying a preset through the GUI's code path
+produces a byte-identical image to the one UEFIPatch produces from the same
+preset.
 
 ## Honest scope
 
@@ -191,6 +217,13 @@ byte-identical image to the one UEFIPatch produces from the same preset.
   already have. Binary patching only removes locks that stop you reaching
   them. The guide says this at more length because it is the part that gets
   skipped.
+- **Debloat gives no frame rate at all.** It shortens POST and reduces the
+  code running before the OS. The dialog says so in orange across the top
+  rather than letting the feature imply otherwise.
+- **The dependency check is sound in one direction only.** It can show a
+  removal is risky; it can never show one is safe, because a dependency
+  expression records protocol GUIDs rather than file GUIDs. The dialog says
+  this where it matters, on every candidate that comes back clean.
 - **Nothing here has been tested on your board.** The tests cover the tool,
   against a synthetic image. They say nothing about whether a given patch is
   right for your firmware, which is what `--dry-run` and `--strict` are for.

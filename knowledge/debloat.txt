@@ -1,0 +1,354 @@
+# UEFITool debloat catalogue
+# ==========================
+#
+# What the Debloat dialog offers to remove from an opened firmware image.
+#
+# READ THIS BEFORE ANYTHING ELSE
+# ------------------------------
+# Removing firmware modules does NOT increase frame rate. Not one entry in
+# this file will give you a single extra FPS. By the time Windows is running,
+# none of this code is executing any more. What removal actually buys you is:
+#
+#   * a shorter POST, sometimes noticeably so for the network stack and CSM
+#   * less code running before the OS, so less attack surface
+#   * free space in the BIOS region, which matters when adding things
+#
+# What it can cost you is the machine not booting. Firmware modules have
+# dependencies, and a module that looks useless may be dispatched by something
+# else, listed in an apriori file, or referenced by GUID from code this tool
+# cannot read. The dialog runs a cross-reference and an apriori check before
+# it lets you remove anything, and it still cannot prove a removal is safe.
+#
+# If your board has Intel Boot Guard or AMD Platform Secure Boot enabled, a
+# modified image will not boot at all. See docs/risks-and-recovery.md.
+#
+# Nothing in here is selected by default, and nothing is removed until you
+# say so twice.
+#
+# FILE FORMAT
+# -----------
+# Directives, all starting with '#' so other tools read the file as comments:
+#
+#   #!category <id>      start a category
+#   #!label <text>       category name shown in the dialog
+#   #!risk <word>        low, medium or high
+#   #!impact <text>      what removing this category actually gains you
+#   #!note <text>        caveats, repeat the directive for more lines
+#   #!platform <name>    Intel, AMD or Any; the dialog dims non matching ones
+#   #!requires <text>    a condition you must have checked yourself first
+#
+# Entries, one per line:
+#
+#   N <text>   a module whose own name in the image contains <text>
+#   G <guid>   a module with this file GUID
+#
+# Everything after the first field is the friendly description.
+#
+# Name matching is the primary mechanism on purpose. A UEFI module carries
+# its own name in a user interface section, so matching on it reads what is
+# actually in your image rather than trusting a list of GUIDs that differ
+# between vendors and BIOS versions. A name that matches nothing simply does
+# not appear in the dialog, which is the safe failure.
+
+
+#============================================================================
+#!category network-boot
+#!label Network boot stack (PXE, HTTP boot, iSCSI)
+#!risk medium
+#!platform Any
+#!impact Usually the largest single POST time saving. Often a second or more
+#!impact on boards that probe the network at every boot.
+#!note Remove only if you never boot this machine from the network and never
+#!note need iSCSI or HTTP boot. The onboard network card still works normally
+#!note under the operating system: this is the firmware's own TCP/IP stack,
+#!note not the card's driver.
+#!note On a corporate or managed machine, PXE is often how it gets reimaged.
+#============================================================================
+
+N UefiPxeBc           UEFI PXE base code, the network boot client
+N PxeDhcp4            PXE DHCP client
+N PxeBaseCode         PXE base code
+N Ip4Dxe              IPv4 stack
+N Ip6Dxe              IPv6 stack
+N Tcp4Dxe             TCP over IPv4
+N Tcp6Dxe             TCP over IPv6
+N TcpDxe              TCP stack
+N Udp4Dxe             UDP over IPv4
+N Udp6Dxe             UDP over IPv6
+N Dhcp4Dxe            DHCP client, IPv4
+N Dhcp6Dxe            DHCP client, IPv6
+N Mtftp4Dxe           TFTP over IPv4, used to fetch a PXE boot image
+N Mtftp6Dxe           TFTP over IPv6
+N DnsDxe              DNS resolver
+N HttpDxe             HTTP client
+N HttpBootDxe         HTTP boot
+N HttpUtilitiesDxe    HTTP helper library
+N IScsiDxe            iSCSI initiator, boots from a network disk
+N VlanConfigDxe       VLAN configuration page in setup
+N NetworkStackSetup   Network stack setup page
+N SnpDxe              Simple network protocol driver
+N MnpDxe              Managed network protocol
+N ArpDxe              ARP, required by the IPv4 stack
+N TlsDxe              TLS for HTTPS boot
+N TlsAuthConfigDxe    TLS certificate configuration page
+
+
+#============================================================================
+#!category csm-legacy
+#!label Compatibility Support Module (legacy BIOS boot)
+#!risk high
+#!platform Any
+#!impact Shortens POST and removes a large block of 16 bit code that runs
+#!impact before the operating system.
+#!requires You boot in pure UEFI mode with CSM already disabled in setup, and
+#!requires your operating system is installed in UEFI mode on a GPT disk.
+#!note If anything still needs legacy boot, the machine will not boot after
+#!note this and you will need the recovery path.
+#!note Removing CSM also removes legacy option ROM support, so an old add-in
+#!note card without a UEFI option ROM will stop initialising.
+#!note On most boards simply turning CSM off in setup gives you the same boot
+#!note path without touching the image. Do that first.
+#============================================================================
+
+N CsmDxe              Compatibility support module driver
+N CsmVideo            Legacy video option ROM support
+N LegacyBios          Legacy BIOS protocol implementation
+N LegacyRegion        Legacy memory region handling
+N LegacyInterrupt     Legacy interrupt handling
+N Legacy8259          8259 interrupt controller support
+N BiosVideo           Legacy BIOS video driver
+N IsaBus              ISA bus driver
+N IsaFloppy           Floppy controller driver
+N Ps2Mouse            PS/2 mouse driver, only if you have no PS/2 ports in use
+N Ps2Keyboard         PS/2 keyboard driver, only if you have no PS/2 ports in use
+
+
+#============================================================================
+#!category vendor-apps
+#!label Vendor utilities that run as UEFI applications
+#!risk medium
+#!platform Any
+#!impact Frees flash space and removes code that can write to the firmware.
+#!note These are the vendor's own tools: firmware updaters, diagnostics,
+#!note backup and recovery front ends. They are reachable from the boot menu
+#!note or a function key at POST.
+#!note Removing the firmware updater means you can no longer update the BIOS
+#!note from inside the BIOS. You will need the vendor's USB recovery method
+#!note instead, so make sure your board has one before removing it.
+#============================================================================
+
+N FlashUpdate         Firmware update application
+N BiosFlash           Firmware flashing application
+N EzFlash             Vendor firmware update utility
+N FwUpdate            Firmware update application
+N Diagnostic          Vendor hardware diagnostics
+N HpDiagnostic        Vendor hardware diagnostics
+N SupportAssist       Vendor support application
+N CloudRecovery       Network firmware recovery application
+N SecureErase         Drive secure erase utility
+N DriveErase          Drive erase utility
+
+
+#============================================================================
+#!category branding
+#!label Boot logo and branding
+#!risk low
+#!platform Any
+#!impact Almost nothing measurable. The logo is decoded once and drawn once.
+#!note Listed because it is the thing people most often want to remove, and
+#!note because it is one of the few genuinely low risk removals: nothing
+#!note depends on a bitmap.
+#!note Some firmware will show a black screen or a blank panel instead of
+#!note failing gracefully, which looks alarming but still boots.
+#!note This does not speed up POST in any way you will notice, and it does
+#!note not affect performance at all.
+#============================================================================
+
+N Logo                Boot logo bitmap
+N SplashScreen        Boot splash screen
+N OemBadging          Vendor badging and logo placement
+N BootLogo            Boot logo driver
+N CrisisRecoveryImage Recovery screen artwork
+
+
+#============================================================================
+#!category telemetry-management
+#!label Remote management and persistence agents
+#!risk medium
+#!platform Any
+#!impact Removes code that deliberately survives an operating system
+#!impact reinstall and can reach the network.
+#!note Computrace and Absolute Persistence re-install an agent into Windows
+#!note from firmware on every boot. If your machine is company property, this
+#!note is very likely there on purpose and removing it is not your call.
+#!note Intel AMT and the Management Engine proper live in a separate flash
+#!note region that this tool must not touch. These entries are only the parts
+#!note that sit in the BIOS region.
+#============================================================================
+
+N Computrace          Absolute Computrace persistence agent
+N AbsoluteAgent       Absolute persistence agent
+N AbtPlatform         Absolute platform driver
+N AntiTheft           Intel Anti-Theft
+N SmartConnect        Intel Smart Connect, wakes the machine to sync
+N RapidStart          Intel Rapid Start, hibernate to an SSD partition
+N AmtSetup            Intel AMT setup page
+N AmtWrapper          Intel AMT wrapper driver
+N MebxSetup           Management engine BIOS extension setup page
+
+
+#============================================================================
+#!category debug
+#!label Debug, trace and status reporting
+#!risk medium
+#!platform Any
+#!impact Small POST saving, and stops the firmware writing debug output to a
+#!impact serial port or a memory buffer on every boot.
+#!note Status code handlers are how firmware reports progress and errors. If
+#!note something goes wrong after removing them, you lose the only
+#!note diagnostic the board has, including POST codes on a debug display.
+#!note Keep these if your board has a POST code readout you rely on.
+#============================================================================
+
+N StatusCodeHandler   Routes firmware status and error codes
+N DebugAgent          Source level debug agent
+N SerialStatusCode    Status codes to a serial port
+N SerialIo            Serial port driver
+N PeiDebug            Early debug output
+N DxeDebug            Debug output driver
+N TraceHub            Intel Trace Hub debug
+N UsbDebug            Debug over USB
+
+
+#============================================================================
+#!category unused-storage
+#!label Storage controllers you do not have
+#!risk high
+#!platform Any
+#!impact Shorter POST, because each controller driver probes its bus.
+#!requires You have confirmed the controller is genuinely absent from this
+#!requires board, not merely unused. Check the board's specification, not the
+#!requires names in this list.
+#!note This is the easiest category to get wrong. Removing the driver for a
+#!note controller your boot disk is attached to leaves an unbootable machine.
+#!note A third party controller driver is present because the board has that
+#!note chip. The usual reason to remove one is a board revision that shares a
+#!note firmware image with a higher model that does have the chip.
+#!note Never remove the driver for the controller your operating system is
+#!note installed on. If you are unsure which that is, do not use this
+#!note category at all.
+#============================================================================
+
+N MarvellRaid         Marvell RAID controller driver
+N MarvellSata         Marvell SATA controller driver
+N AsmediaSata         ASMedia SATA controller driver
+N Asm106x             ASMedia SATA controller driver
+N JMicron             JMicron controller driver
+N LsiRaid             LSI RAID controller driver
+N MegaRaid            LSI MegaRAID controller driver
+N IntelRaid           Intel RAID option ROM
+N RstOrom             Intel Rapid Storage Technology option ROM
+N SataController      SATA controller driver
+
+
+#============================================================================
+#!category thunderbolt
+#!label Thunderbolt and docking
+#!risk medium
+#!platform Any
+#!impact Shorter POST on boards that enumerate Thunderbolt at boot.
+#!requires The board has no Thunderbolt port and no Thunderbolt header card.
+#!note Thunderbolt firmware also handles some USB4 behaviour on recent
+#!note platforms, so on a machine that does have the hardware this is not a
+#!note safe removal.
+#============================================================================
+
+N Thunderbolt         Thunderbolt controller support
+N TbtDxe              Thunderbolt driver
+N TbtSmm              Thunderbolt system management handler
+N TbtPolicy           Thunderbolt policy driver
+N DockingStation      Docking station support
+
+
+#============================================================================
+#!category setup-extras
+#!label Setup screen extras and language packs
+#!risk medium
+#!platform Any
+#!impact Frees flash space. Language resources are often among the largest
+#!impact removable items in the image.
+#!note Removing the language a board is configured to use leaves the setup
+#!note screen with missing strings, which is recoverable by a CMOS clear only
+#!note if the default language is one you kept.
+#!note The setup browser itself must stay. These entries are the extra
+#!note resources around it, not the browser.
+#============================================================================
+
+N LangPack            Setup language resources
+N MultiLang           Multi language support
+N StringPack          Setup string resources
+N OemString           Vendor string resources
+N HiiLanguage         HII language support
+
+
+#============================================================================
+#!category intel-extras
+#!label Intel platform extras
+#!risk medium
+#!platform Intel
+#!impact Small POST savings, less code before the operating system.
+#!note Software Guard Extensions, Trusted Execution and Total Memory
+#!note Encryption each have a setup switch that turns them off without
+#!note touching the image. Use the switch first.
+#!note Total Memory Encryption does cost a few percent of memory bandwidth
+#!note when it is on, which is the one item here with a measurable effect.
+#!note Turning it off in setup gets you that back; removing the module is
+#!note not necessary and not safer.
+#============================================================================
+
+N SgxDxe              Software Guard Extensions driver
+N SgxPei              Software Guard Extensions early init
+N SgxSetup            Software Guard Extensions setup page
+N TxtDxe              Trusted Execution Technology driver
+N TxtPei              Trusted Execution Technology early init
+N TcgSetup            Trusted computing setup page
+N OverClockSetup      Intel overclocking mailbox setup page
+
+
+#============================================================================
+#!category amd-extras
+#!label AMD platform extras
+#!risk high
+#!platform AMD
+#!impact Small POST savings.
+#!note AMD platform initialisation is far more tightly coupled than Intel's.
+#!note AGESA modules, the CPM drivers and the PSP interface are not optional
+#!note and are not listed here for that reason.
+#!note Only the clearly peripheral pieces appear below, and even those are
+#!note marked high risk because AMD firmware tends to dispatch modules from
+#!note tables this tool cannot read.
+#============================================================================
+
+N AmdCpmDisplay       AMD display feature driver
+N AmdPspP2CmBox       PSP mailbox helper
+N AmdSmbiosDxe        AMD SMBIOS table extras
+N AmdAcpiAml          Extra ACPI tables
+
+
+#============================================================================
+#!category misc
+#!label Miscellaneous
+#!risk medium
+#!platform Any
+#!impact Varies. Each of these is small on its own.
+#!note The grab bag. Read the dependency panel for each one before removing.
+#============================================================================
+
+N SmbiosOem           Vendor SMBIOS table extensions
+N UserAuth            Pre boot user authentication
+N PasswordConfig      Setup password configuration
+N FingerPrint         Fingerprint reader pre boot driver
+N SmartCard           Smart card pre boot driver
+N WirelessConfig      Wireless configuration page
+N BluetoothConfig     Bluetooth configuration page
+N AcousticManagement  Drive acoustic management page

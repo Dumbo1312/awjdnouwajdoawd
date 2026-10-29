@@ -8,6 +8,8 @@ SOURCES  += uefitool_main.cpp \
  uefitool.cpp \
  searchdialog.cpp \
  presetdialog.cpp \
+ debloatdialog.cpp \
+ firmwarereport.cpp \
  patchset.cpp \
  theme.cpp \
  types.cpp \
@@ -32,6 +34,8 @@ SOURCES  += uefitool_main.cpp \
 HEADERS  += uefitool.h \
  searchdialog.h \
  presetdialog.h \
+ debloatdialog.h \
+ firmwarereport.h \
  patchset.h \
  theme.h \
  basetypes.h \
