@@ -1,0 +1,26 @@
+{
+	"name": "theme-arceuscode",
+	"displayName": "ArceusCode Themes",
+	"description": "Yellow and black themes for ArceusCode.",
+	"version": "1.0.0",
+	"publisher": "arceus",
+	"license": "MIT",
+	"engines": { "vscode": "*" },
+	"categories": ["Themes"],
+	"contributes": {
+		"themes": [
+			{
+				"id": "Arceus Dark",
+				"label": "Arceus Dark",
+				"uiTheme": "vs-dark",
+				"path": "./themes/arceus-dark.json"
+			},
+			{
+				"id": "Arceus Light",
+				"label": "Arceus Light",
+				"uiTheme": "vs",
+				"path": "./themes/arceus-light.json"
+			}
+		]
+	}
+}

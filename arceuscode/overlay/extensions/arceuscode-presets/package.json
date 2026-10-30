@@ -1,0 +1,62 @@
+{
+	"name": "arceuscode-presets",
+	"displayName": "ArceusCode Presets",
+	"description": "Preset personas and command frameworks for the ArceusCode agent.",
+	"version": "0.1.0",
+	"publisher": "arceus",
+	"license": "MIT",
+	"engines": { "vscode": "^1.100.0" },
+	"main": "./dist/extension.js",
+	"activationEvents": [ "onStartupFinished" ],
+	"contributes": {
+		"commands": [
+			{ "command": "arceusCode.presets.pick",        "title": "Arceus: Pick Preset",       "category": "Arceus" },
+			{ "command": "arceusCode.presets.edit",        "title": "Arceus: Edit Presets",      "category": "Arceus" },
+			{ "command": "arceusCode.presets.openCurrent", "title": "Arceus: Open Current Preset", "category": "Arceus" },
+			{ "command": "arceusCode.commands.pick",       "title": "Arceus: Run Framework Command", "category": "Arceus" },
+			{ "command": "arceusCode.commands.edit",       "title": "Arceus: Edit Framework Commands", "category": "Arceus" }
+		],
+		"keybindings": [
+			{ "command": "arceusCode.presets.pick",  "key": "ctrl+alt+p", "mac": "cmd+alt+p" },
+			{ "command": "arceusCode.commands.pick", "key": "ctrl+alt+k", "mac": "cmd+alt+k" }
+		],
+		"configuration": {
+			"title": "Arceus: Presets",
+			"properties": {
+				"arceusCode.presets.active": {
+					"type": "string",
+					"default": "general",
+					"description": "ID of the preset currently applied to the agent."
+				},
+				"arceusCode.presets.library": {
+					"type": "array",
+					"default": [],
+					"description": "User-defined presets. Each entry: { id, name, icon, systemPrompt, tools, temperature }."
+				},
+				"arceusCode.commands.library": {
+					"type": "array",
+					"default": [],
+					"description": "User-defined framework commands. Each entry: { id, name, prompt, allowedTools, permissionMode }."
+				}
+			}
+		},
+		"menus": {
+			"commandPalette": [
+				{ "command": "arceusCode.presets.pick" },
+				{ "command": "arceusCode.presets.edit" },
+				{ "command": "arceusCode.presets.openCurrent" },
+				{ "command": "arceusCode.commands.pick" },
+				{ "command": "arceusCode.commands.edit" }
+			]
+		}
+	},
+	"scripts": {
+		"build": "node ./build.js",
+		"watch": "node ./build.js --watch"
+	},
+	"devDependencies": {
+		"@types/vscode": "^1.100.0",
+		"esbuild": "^0.21.0",
+		"typescript": "^5.4.0"
+	}
+}
