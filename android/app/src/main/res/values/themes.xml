@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="launcher_bg">#6200EE</color>
+
+    <style name="Theme.AIOverlay" parent="Theme.MaterialComponents.DayNight.DarkActionBar">
+        <item name="colorPrimary">#6200EE</item>
+        <item name="colorPrimaryDark">#3700B3</item>
+        <item name="colorAccent">#BB86FC</item>
+        <item name="android:windowBackground">#121212</item>
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
+    </style>
+</resources>

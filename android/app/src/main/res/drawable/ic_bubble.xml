@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Simple chat/AI icon: speech bubble with spark -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M12,2C6.48,2 2,5.92 2,10.5c0,2.76 1.46,5.21 3.73,6.84L5,21l4.29-2.14C10.14,19.28 11.05,19.5 12,19.5c5.52,0 10,-3.92 10,-8.5S17.52,2 12,2z" />
+    <path
+        android:fillColor="#6200EE"
+        android:pathData="M8.5,10.5m-1.5,0a1.5,1.5 0,1 1,3 0a1.5,1.5 0,1 1,-3 0" />
+    <path
+        android:fillColor="#6200EE"
+        android:pathData="M12,10.5m-1.5,0a1.5,1.5 0,1 1,3 0a1.5,1.5 0,1 1,-3 0" />
+    <path
+        android:fillColor="#6200EE"
+        android:pathData="M15.5,10.5m-1.5,0a1.5,1.5 0,1 1,3 0a1.5,1.5 0,1 1,-3 0" />
+</vector>

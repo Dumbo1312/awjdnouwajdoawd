@@ -1,0 +1,3 @@
+-keep class com.aioverlay.app.** { *; }
+-dontwarn okhttp3.**
+-dontwarn okio.**
