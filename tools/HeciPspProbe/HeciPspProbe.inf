@@ -1,0 +1,46 @@
+## @file HeciPspProbe.inf
+#
+# DXE driver: probe Intel ME via HECI or AMD PSP via CCP/PSP PCI mailbox.
+#
+# To build:
+#   1. Copy this directory into any EDK2 package (e.g. OvmfPkg/HeciPspProbe/)
+#   2. Add to your platform DSC under [Components]:
+#        OvmfPkg/HeciPspProbe/HeciPspProbe.inf
+#   3. Add to your platform FDF under [FV.DXEFV] or equivalent:
+#        INF OvmfPkg/HeciPspProbe/HeciPspProbe.inf
+#   4. Build normally:
+#        build -p OvmfPkg/OvmfPkgX64.dsc -a X64 -t GCC5
+#
+# Standalone build (no existing package needed):
+#   Use edk2-libc or just drop into MdeModulePkg and add to MdeModulePkg.dsc.
+##
+
+[Defines]
+  INF_VERSION    = 0x00010005
+  BASE_NAME      = HeciPspProbe
+  FILE_GUID      = 6E37992C-A5B2-4F3D-8D1E-9A7F2C5E0B41
+  MODULE_TYPE    = DXE_DRIVER
+  VERSION_STRING = 1.0
+  ENTRY_POINT    = HeciPspProbeEntry
+
+[Sources]
+  HeciPspProbe.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+
+[LibraryClasses]
+  UefiDriverEntryPoint
+  UefiLib
+  UefiBootServicesTableLib
+  UefiRuntimeServicesTableLib
+  DebugLib
+  IoLib
+  PciLib
+  BaseMemoryLib
+  MemoryAllocationLib
+  TimerLib
+  BaseLib
+
+[Depex]
+  TRUE
