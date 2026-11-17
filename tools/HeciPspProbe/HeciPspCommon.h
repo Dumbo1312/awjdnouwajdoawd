@@ -44,12 +44,12 @@ typedef UINT64             EFI_PHYSICAL_ADDRESS;
 #define PROBE_STATUS_ALLOC_FAILED  8U
 #define PROBE_STATUS_CMD_TIMEOUT   9U
 
+typedef struct { UINT32 D1; UINT16 D2; UINT16 D3; UINT8 D4[8]; } EFI_GUID;
+
 typedef struct {
   EFI_GUID VendorGuid;
   VOID    *VendorTable;
 } EFI_CONFIGURATION_TABLE;
-
-typedef struct { UINT32 D1; UINT16 D2; UINT16 D3; UINT8 D4[8]; } EFI_GUID;
 typedef struct { UINT64 Sig; UINT32 Rev; UINT32 HdrSz; UINT32 Crc; UINT32 Rsvd; } EFI_TABLE_HEADER;
 
 typedef EFI_STATUS(EFIAPI *EFI_SET_VARIABLE)(

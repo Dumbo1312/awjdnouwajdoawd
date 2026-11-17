@@ -16,11 +16,6 @@
 #include <intrin.h>
 #include "HeciPspCommon.h"
 
-#pragma intrinsic(__inbyte)
-#pragma intrinsic(__outbyte)
-#pragma intrinsic(__indword)
-#pragma intrinsic(__outdword)
-#pragma intrinsic(__cpuid)
 #pragma function(memset)
 #pragma function(memcpy)
 
