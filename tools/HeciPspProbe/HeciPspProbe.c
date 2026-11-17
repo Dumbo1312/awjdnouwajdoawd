@@ -603,6 +603,242 @@ static VOID FreePages(UINT32 PA, UINTN Pages) {
     gST->BootServices->FreePages((EFI_PHYSICAL_ADDRESS)PA, Pages);
 }
 
+/* =========================================================================
+ * ==========================================================================
+ * AMD CCP (Cryptographic Co-Processor) DMA engine
+ * ==========================================================================
+ *
+ * The CCP is on the SAME PCI device / BAR2 as the PSP mailbox, just at a
+ * lower offset range.  Engine 5 = passthrough (plain memory copy, no
+ * crypto transform).  x86 cores keep running throughout — zero SMI.
+ *
+ * CCP v5 queue 0 register map (BAR2-relative offsets):
+ *
+ *   BAR2 + 0x1000 + 0x000  Q0_CTRL      enable / halt
+ *   BAR2 + 0x1000 + 0x004  Q0_TAIL_LO   SW advances: points past last desc
+ *   BAR2 + 0x1000 + 0x008  Q0_HEAD_LO   HW advances: points to next to run
+ *   BAR2 + 0x1000 + 0x00C  Q0_INT_EN    interrupt enable (we keep 0)
+ *   BAR2 + 0x1000 + 0x010  Q0_INT_STS   bit[0] = IOC completion flag
+ *   BAR2 + 0x1000 + 0x100  Q0_STATUS    bit[1] = error
+ *
+ * Descriptor (32 bytes, 4KB-aligned physical address required):
+ *
+ *   DW0  [19:0]  = byte count  |  [30]=SOF  [28]=IOC  [26]=EOM
+ *   DW1  [3:0]  = engine type (5 = passthrough)
+ *   DW2  SrcLo  source PA bits [31:0]
+ *   DW3  SrcHi  bits[1:0]=mem-type (0=DRAM)  bits[31:2]=PA[33:2]
+ *   DW4  DstLo  dest PA bits [31:0]
+ *   DW5  DstHi  same encoding as SrcHi
+ *   DW6  KeyLo  = 0 (passthrough uses no key)
+ *   DW7  KeyHi  = 0
+ *
+ * Submit sequence:
+ *   1. Write descriptor at DescPA.
+ *   2. Set HEAD = TAIL = DescPA  (empty queue at our descriptor base).
+ *   3. CTRL |= ENABLE.
+ *   4. TAIL = DescPA + 32        (one descriptor pending).
+ *   5. Poll INT_STS bit[0] until set (IOC fires on completion).
+ * ========================================================================= */
+
+#define CCP_Q0_BASE     0x00001000UL
+#define CCP_Q0_CTRL     (CCP_Q0_BASE + 0x000U)
+#define CCP_Q0_TAIL_LO  (CCP_Q0_BASE + 0x004U)   /* SW writes here */
+#define CCP_Q0_HEAD_LO  (CCP_Q0_BASE + 0x008U)   /* HW advances here */
+#define CCP_Q0_INT_EN   (CCP_Q0_BASE + 0x00CU)
+#define CCP_Q0_INT_STS  (CCP_Q0_BASE + 0x010U)   /* bit[0]=IOC done */
+#define CCP_Q0_STATUS   (CCP_Q0_BASE + 0x100U)   /* bit[1]=error */
+
+#define CCP_Q_CTRL_ENABLE   (1U << 0)
+#define CCP_Q_CTRL_HALT     (1U << 1)
+#define CCP_Q_INT_IOC       (1U << 0)   /* IOC completed */
+#define CCP_Q_STS_ERROR     (1U << 1)
+
+/* Descriptor DW0 flags */
+#define CCP_D_SOF   (1U << 30)   /* start of frame */
+#define CCP_D_IOC   (1U << 28)   /* interrupt on complete */
+#define CCP_D_EOM   (1U << 26)   /* end of message */
+
+/* Engine numbers (DW1 bits [3:0]) */
+#define CCP_ENG_PASSTHRU  5U     /* plain copy, no transform */
+
+#pragma pack(push, 1)
+typedef struct {
+  UINT32 Dw0;    /* flags | length in bytes [19:0] */
+  UINT32 Dw1;    /* engine [3:0] | function [15:4] = 0 for passthru */
+  UINT32 SrcLo;  /* source PA [31:0] */
+  UINT32 SrcHi;  /* [1:0]=mem-type (0=DRAM)  [31:2]=PA[33:2] */
+  UINT32 DstLo;  /* dest   PA [31:0] */
+  UINT32 DstHi;
+  UINT32 KeyLo;  /* 0 */
+  UINT32 KeyHi;  /* 0 */
+} CCP_DESC;      /* must be 32-byte aligned — EFI pages satisfy this */
+#pragma pack(pop)
+
+/* BAR2 of the CCP/PSP device, shared with the PSP mailbox section */
+static UINT64 gCcpBar2;
+
+/* Submit one passthrough descriptor and poll for IOC completion.
+   All PAs must be < 4 GB (guaranteed by AllocBelow4G).
+   Returns 0 on success, non-zero on timeout/hw-error. */
+static UINT32 CcpRunPassthru(
+    UINT32 DescPa,   /* PA of CCP_DESC, 32-byte aligned  */
+    UINT32 SrcPa,    /* source physical address           */
+    UINT32 DstPa,    /* destination physical address      */
+    UINT32 Len,      /* byte count, <= 0xFFFFF            */
+    UINT32 TmoUs)
+{
+  CCP_DESC *D = (CCP_DESC *)(UINTN)DescPa;
+  UINT32 IntSts, Sts;
+  UINT64 T;
+
+  ZeroMem(D, sizeof(*D));
+
+  /* Passthrough: engine 5, function 0, SOF | EOM | IOC, no key */
+  D->Dw0   = (Len & 0x000FFFFFU) | CCP_D_SOF | CCP_D_EOM | CCP_D_IOC;
+  D->Dw1   = CCP_ENG_PASSTHRU;
+  D->SrcLo = SrcPa;
+  D->SrcHi = 0;   /* < 4 GB, mem-type = 0 (system DRAM) */
+  D->DstLo = DstPa;
+  D->DstHi = 0;
+  D->KeyLo = 0;
+  D->KeyHi = 0;
+
+  Log("ccp: desc  DW0="); LogH32(D->Dw0);
+  Log(" DW1="); LogH32(D->Dw1); Log("\n");
+  Log("ccp:       Src="); LogH32(SrcPa);
+  Log(" Dst="); LogH32(DstPa);
+  Log(" Len="); LogH32(Len); Log("\n");
+
+  /* Snapshot queue state before we touch it */
+  Log("ccp: Q0 pre-submit  CTRL=");
+  LogH32(MmioR32(gCcpBar2 + CCP_Q0_CTRL));
+  Log(" TAIL="); LogH32(MmioR32(gCcpBar2 + CCP_Q0_TAIL_LO));
+  Log(" HEAD="); LogH32(MmioR32(gCcpBar2 + CCP_Q0_HEAD_LO));
+  Log(" STS=");  LogH32(MmioR32(gCcpBar2 + CCP_Q0_STATUS)); Log("\n");
+
+  /* Halt any in-progress queue before reprogramming */
+  MmioW32(gCcpBar2 + CCP_Q0_CTRL, 0);
+  SpinUs(50);
+
+  /* Clear INT_STS write-1-to-clear */
+  MmioW32(gCcpBar2 + CCP_Q0_INT_STS, CCP_Q_INT_IOC);
+
+  /* Point HEAD and TAIL to our descriptor (empty queue at this base) */
+  MmioW32(gCcpBar2 + CCP_Q0_HEAD_LO, DescPa);
+  MmioW32(gCcpBar2 + CCP_Q0_TAIL_LO, DescPa);
+
+  /* Enable queue */
+  MmioW32(gCcpBar2 + CCP_Q0_CTRL, CCP_Q_CTRL_ENABLE);
+  SpinUs(10);
+
+  /* Submit: advance TAIL past the one descriptor (32 bytes) */
+  MmioW32(gCcpBar2 + CCP_Q0_TAIL_LO, DescPa + 32);
+
+  /* Poll INT_STS bit[0] for IOC */
+  T = (UINT64)TmoUs;
+  while (T > 0) {
+    IntSts = MmioR32(gCcpBar2 + CCP_Q0_INT_STS);
+    if (IntSts & CCP_Q_INT_IOC) break;
+    SpinUs(100); T -= 100;
+  }
+
+  IntSts = MmioR32(gCcpBar2 + CCP_Q0_INT_STS);
+  Sts    = MmioR32(gCcpBar2 + CCP_Q0_STATUS);
+
+  Log("ccp: post-run  CTRL=");
+  LogH32(MmioR32(gCcpBar2 + CCP_Q0_CTRL));
+  Log(" TAIL="); LogH32(MmioR32(gCcpBar2 + CCP_Q0_TAIL_LO));
+  Log(" HEAD="); LogH32(MmioR32(gCcpBar2 + CCP_Q0_HEAD_LO));
+  Log(" INT=");  LogH32(IntSts);
+  Log(" STS=");  LogH32(Sts);
+  Log(" T=");    LogHex(T); Log("\n");
+
+  /* Disable queue; leave CCP in clean state */
+  MmioW32(gCcpBar2 + CCP_Q0_CTRL, 0);
+
+  if (!T)              return 2;  /* timeout */
+  if (Sts & CCP_Q_STS_ERROR) return 3;  /* engine error */
+  return 0;
+}
+
+/* Allocate SrcPage + DstPage + DescPage, write pattern, copy via CCP,
+   verify, free, store result. */
+static VOID CcpSelfTest(UINT64 Bar2) {
+  UINT32 SrcPa = 0, DstPa = 0, DescPa = 0;
+  UINT32 *Src, *Dst;
+  UINT32 i, Err, R;
+  CCP_RESULT Res;
+
+  ZeroMem(&Res, sizeof(Res));
+  gCcpBar2 = Bar2;
+
+  Res.Q0Ctrl   = MmioR32(Bar2 + CCP_Q0_CTRL);
+  Res.Q0Status = MmioR32(Bar2 + CCP_Q0_STATUS);
+
+  Log("\nccp: ---- self-test ----\n");
+  Log("ccp: Q0_CTRL="); LogH32(Res.Q0Ctrl);
+  Log("  Q0_STATUS="); LogH32(Res.Q0Status); Log("\n");
+
+  SrcPa  = AllocBelow4G(1);   /* 4 KB source page  */
+  DstPa  = AllocBelow4G(1);   /* 4 KB dest page    */
+  DescPa = AllocBelow4G(1);   /* 4 KB for CCP desc (32-byte aligned) */
+
+  if (!SrcPa || !DstPa || !DescPa) {
+    Log("ccp: page alloc failed\n");
+    Res.Status = CCP_STATUS_ALLOC_FAIL;
+    goto Done;
+  }
+
+  Res.DescPa = DescPa;
+  Log("ccp: SrcPa="); LogH32(SrcPa);
+  Log("  DstPa=");   LogH32(DstPa);
+  Log("  DescPa=");  LogH32(DescPa); Log("\n");
+
+  /* Write 0xAA55AA55 ^ index pattern into source page */
+  Src = (UINT32 *)(UINTN)SrcPa;
+  for (i = 0; i < 4096 / 4; i++) Src[i] = 0xAA55AA55U ^ i;
+
+  /* Zero destination page */
+  Dst = (UINT32 *)(UINTN)DstPa;
+  ZeroMem(Dst, 4096);
+
+  /* Copy 4096 bytes via CCP passthrough, 2 s timeout */
+  R = CcpRunPassthru(DescPa, SrcPa, DstPa, 4096, 2000000U);
+  Log("ccp: CcpRunPassthru returned "); LogH32(R); Log("\n");
+
+  Res.Q0IntSts = MmioR32(Bar2 + CCP_Q0_INT_STS);
+
+  if (R == 2) { Res.Status = CCP_STATUS_TIMEOUT;  goto Done; }
+  if (R == 3) { Res.Status = CCP_STATUS_HW_ERROR; goto Done; }
+  if (R != 0) { Res.Status = CCP_STATUS_HW_ERROR; goto Done; }
+
+  /* Verify copy */
+  Err = 0;
+  for (i = 0; i < 4096 / 4; i++) {
+    if (Dst[i] != (0xAA55AA55U ^ i)) { Err = i + 1; break; }
+  }
+
+  Log("ccp: verify ");
+  if (Err) {
+    Log("FAIL at DWORD "); LogH32(Err - 1);
+    Log("  got="); LogH32(Dst[Err - 1]);
+    Log("  exp="); LogH32(0xAA55AA55U ^ (Err - 1)); Log("\n");
+    Res.Status   = CCP_STATUS_VERIFY_FAIL;
+    Res.Mismatch = Err - 1;
+  } else {
+    Log("OK — 4096 bytes match\n");
+    Res.Status   = CCP_STATUS_OK;
+    Res.Mismatch = 0;
+  }
+
+Done:
+  if (SrcPa)  FreePages(SrcPa,  1);
+  if (DstPa)  FreePages(DstPa,  1);
+  if (DescPa) FreePages(DescPa, 1);
+  StoreVar(L"CCPResult", &Res, sizeof(Res));
+  Log("ccp: ---- self-test done ----\n\n");
+}
+
 static EFI_STATUS RunAmd(VOID) {
   UINT64 Bar2; UINT32 Mbox, Feat, Sts, CmdBufPa;
   PSP_CMD_BUF *Cmd; UINT64 T;
@@ -702,6 +938,11 @@ static EFI_STATUS RunAmd(VOID) {
 
   FreePages(CmdBufPa, 1);
   StoreVar(L"PSPResult", &Result, sizeof(Result));
+
+  /* ---- CCP DMA self-test (async memory copy, no SMI involved) ---- */
+  Log("ccp: starting DMA self-test on Bar2="); LogHex(Bar2); Log("\n");
+  CcpSelfTest(Bar2);
+
   return T ? EFI_SUCCESS : EFI_TIMEOUT;
 }
 

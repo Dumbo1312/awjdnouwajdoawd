@@ -138,6 +138,24 @@ typedef struct {
 } PSP_RESULT;
 #pragma pack(pop)
 
+/* CCP self-test status codes */
+#define CCP_STATUS_OK           0U
+#define CCP_STATUS_ALLOC_FAIL   1U
+#define CCP_STATUS_TIMEOUT      2U
+#define CCP_STATUS_HW_ERROR     3U
+#define CCP_STATUS_VERIFY_FAIL  4U
+#define CCP_STATUS_NO_DEVICE    5U
+
+/* Result stored in UEFI variable L"CCPResult" */
+typedef struct {
+  UINT32 Status;     /* CCP_STATUS_* */
+  UINT32 Q0Ctrl;     /* Q0_CTRL register snapshot */
+  UINT32 Q0Status;   /* Q0_STATUS register snapshot */
+  UINT32 Q0IntSts;   /* Q0_INT_STS at completion */
+  UINT32 DescPa;     /* descriptor PA used for the test */
+  UINT32 Mismatch;   /* 0 = verify OK, else first bad DWORD index */
+} CCP_RESULT;
+
 static VOID ZeroMem(VOID *Buf, UINTN Sz) {
   UINT8 *P = (UINT8 *)Buf; while (Sz--) *P++ = 0;
 }
